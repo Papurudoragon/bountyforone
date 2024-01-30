@@ -1,0 +1,4 @@
+go packages isntalled (see bin):
+
+subfinder
+amass
