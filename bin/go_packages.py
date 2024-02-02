@@ -70,7 +70,7 @@ def install_go_windows():
     
     # remove the installer if it exists - we dont need it anymore after install
     if is_go_installed():
-            if os.path.exists(installer_filename)
+            if os.path.exists(installer_filename):
                 os.remove(installer_filename)
     return
 
