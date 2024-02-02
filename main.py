@@ -165,25 +165,8 @@ def tech_used(d_name, output_dir):
 
     return tech_data
 
-def port_scan(url, d_name, output_dir):
-    scan_data = []
-    port_file = Path(output_dir) / f"{d_name}_portscan.txt"
-
-    # lets just use our own port scanner
-        target = url
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(.5) # dont want to wait tooooo long :)
-        i = 1
-        for port in range(1, 7000): # dont want to force it with large subdomain scanning
-            try:
-                conn = s.connect((target, port))
-                t = threading.Thread(target=portscan,kwargs={'port':i})
-                
-                print(f"{port} is open for {domain}")
-                i += 1
-                t.start()
-            except Exception as e:
-                print(e)
+def port_scan(url, d_name, output_dir): # add in a port scan
+    pass
 
 
 
