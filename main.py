@@ -14,6 +14,8 @@ import domain_relations
 import waymore_install
 sys.path.append('bin/')
 import go_packages
+import threading
+import socket
 
 
 # Grab the apex domains
@@ -81,11 +83,15 @@ def passive_subenum(url, d_name, output_dir):
 
     domains_file = Path(output_dir) / f"{d_name}.txt"  
     pass_sub_file = Path(output_dir) / f"{d_name}_subdomains.txt"
-    # waymore_path = Path('src') / f"waymore.py" # --> user reports timeout issues with this
+    waymore_path = Path('src') / 'waymore' / f"waymore.py" # --> user reports timeout issues with this
 
-    # Read domains
-    with open(domains_file, 'r') as file:
-        domains = [line.strip() for line in file if domain_regex.match(line.strip())]
+    # Check if the domains file exists (for apex domain flag)
+    if domains_file.exists():
+        with open(domains_file, 'r') as file:
+            domains = [line.strip() for line in file if domain_regex.match(line.strip())]
+    else:
+        # If file does not exist, use the url variable directly
+        domains = [url] if domain_regex.match(url) else []
 
     batch_size = 10  # Process a batch of 10 domains at a time - this saves on processing power
     for i in range(0, len(domains), batch_size):
@@ -95,7 +101,7 @@ def passive_subenum(url, d_name, output_dir):
             for domain in batch_domains:
                 futures[executor.submit(run_command_async, domain, ["subfinder", "-d", domain, "-v"])] = domain
                 futures[executor.submit(run_command_async, domain, ["amass", "enum", "-d", domain, "-v"])] = domain
-                # futures[executor.submit(run_command_async, domain, [f"{waymore_path}", "-i", domain])] = domain ## --> apparently gives issues - need to check this
+                futures[executor.submit(run_command_async, domain, ["python3", waymore_path, "-i", url])] = domain ## --> apparently gives issues - need to check this
 
 
             for future in concurrent.futures.as_completed(futures):
@@ -159,13 +165,31 @@ def tech_used(d_name, output_dir):
 
     return tech_data
 
+def port_scan(url, d_name, output_dir): # add in a port scan
+    pass
+
+
+
+
 
 def main():
     print("Starting main function")
     parser = argparse.ArgumentParser(description="Bug bounty tool")
     parser.add_argument("--domain", "-d", required=True, help="Enter the domain name for the target")
+    parser.add_argument("--subdomains", "-s", action='store_true', help="enumerate subdomains only (excludes everything else)")
+    parser.add_argument("--apex", "-ax", action='store_true', help="Grab apex domains only")
+    parser.add_argument("--tech-detection", "-td", action='store_true', help="Only run subdomains enumeration and tech detection")
+    parser.add_argument("--portscan", "-p", action='store_true', help="basic port scan on subdomains")
+    parser.add_argument("--all", "-a", action='store_true', help="Run all checks default if only -d is selected with nothing else.")
+
     args = parser.parse_args()
+
     url = args.domain
+    sub = args.subdomains
+    apex = args.apex
+    tech = args.tech_detection
+    port = args.portscan
+    all_ = args.all #-- use _ to avoid conflict with the all var
 
     try:
         current_os = platform.system()
@@ -190,47 +214,104 @@ def main():
         output_dir = Path("output") / d_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        print("Processing domain relations")
-        domain_relations.process_domain(url)
-
-        print("Running apex domains")
-        apex_domains_data = apex_domains(url, d_name, output_dir)
-
-        print("Running ASN grab")
-        asn_grab_data = asn_grab(url, d_name, output_dir)
-
-        if not waymore_install.check_waymore():
-            waymore_install.install_waymore()
-        print("Running passive subdomain enumeration")
-        subdomain_data = passive_subenum(url, d_name, output_dir)
-
-        print("Running Tech Detection with HTTPX...")
-        tech_used_data = tech_used(d_name, output_dir)
-
-
-        print("Writing and organizing results to Excel")
-        excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
-        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
-
-            # Create DataFrame for each data type
-            df_apex_domains = pd.DataFrame(apex_domains_data, columns=['Apex Domain'])
-            df_asn_grab = pd.DataFrame(asn_grab_data, columns=['IP Range', 'Organization'])
-            df_subdomains = pd.DataFrame(subdomain_data, columns=['Subdomains'])
-            df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
-            
-            print(f"processed data: processed_data") # -- for testing...
-
-            # Write to Excel
-            df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
-            df_asn_grab.to_excel(writer, sheet_name='ASN_Findings')
-            df_subdomains.to_excel(writer, sheet_name='Subdomains')
-            df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
-
-        print("All functions executed successfully")
-
     except Exception as e:
-        print(f"Unexpected error in main: {e}")
-    print("Exiting main function")
+        print(e)
+
+    if all_:
+        try:
+
+            print("Processing domain relations")
+            domain_relations.process_domain(url)
+
+            print("Running apex domains")
+            apex_domains_data = apex_domains(url, d_name, output_dir)
+
+            print("Running ASN grab")
+            asn_grab_data = asn_grab(url, d_name, output_dir)
+
+            if not waymore_install.check_waymore():
+                waymore_install.install_waymore()
+            print("Running passive subdomain enumeration")
+            subdomain_data = passive_subenum(url, d_name, output_dir)
+
+            print("Running Tech Detection with HTTPX...")
+            tech_used_data = tech_used(d_name, output_dir)
+
+
+            print("Writing and organizing results to Excel")
+            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
+            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+
+                # Create DataFrame for each data type
+                df_apex_domains = pd.DataFrame(apex_domains_data, columns=['Apex Domain'])
+                df_asn_grab = pd.DataFrame(asn_grab_data, columns=['IP Range', 'Organization'])
+                df_subdomains = pd.DataFrame(subdomain_data, columns=['Subdomains'])
+                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
+            
+                # Write to Excel
+                df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
+                df_asn_grab.to_excel(writer, sheet_name='ASN_Findings')
+                df_subdomains.to_excel(writer, sheet_name='Subdomains')
+                df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
+
+
+        except Exception as e:
+            print(e)
+
+    else:
+        if sub:
+            if not waymore_install.check_waymore():
+                waymore_install.install_waymore()
+            print("Running passive subdomain enumeration")
+            subdomain_data = passive_subenum(url, d_name, output_dir)
+
+            print("Writing and organizing results to Excel")
+            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
+            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+
+                # Create DataFrame for each data type
+                df_subdomains = pd.DataFrame(subdomain_data, columns=['Subdomains'])
+                
+                print(f"processed data: processed_data") # -- for testing...
+
+                # Write to Excel
+                df_subdomains.to_excel(writer, sheet_name='Subdomains')
+        
+        if apex:
+            print("Running apex domains")
+            apex_domains_data = apex_domains(url, d_name, output_dir)
+
+            print("Writing and organizing results to Excel")
+            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
+            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+
+                # Create DataFrame for each data type
+                df_apex_domains = pd.DataFrame(apex_domains_data, columns=['Apex Domain'])
+
+                # Write to Excel
+                df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
+
+        if tech:
+
+            print("Running Tech Detection with HTTPX...")
+            tech_used_data = tech_used(d_name, output_dir)
+
+
+            print("Writing and organizing results to Excel")
+            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
+            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+
+                # Create DataFrame for each data type
+                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
+            
+                # Write to Excel
+                df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
+        
+        if port:
+            print("portscan coming soon...")
+            return
+
+        
 
 
 
