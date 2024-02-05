@@ -12,11 +12,19 @@ import concurrent.futures
 sys.path.append('src/')
 import domain_relations
 import waymore_install
+import nmap_install
+
 sys.path.append('bin/')
 import go_packages
+
 import threading
 import socket
+import nmap3
+from pathlib import Path
 
+
+# global vars
+# --- update later
 
 # Grab the apex domains
 def apex_domains(url, d_name, output_dir):
@@ -70,61 +78,98 @@ def asn_grab(url, d_name, output_dir):
     print("Exiting asn_grab function")
 
 
+# commend to run subprocess (do not do async to not run up RAM)
+    
+def run_command(domain, command):
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+        stdout, stderr = process.communicate(timeout=300)
+        return domain, stdout, stderr
+    except subprocess.TimeoutExpired:
+        process.kill()
+        return domain, "", f"Command timed out for domain {domain}"
+    except Exception as e:
+        return domain, "", str(e)
 
-# used to run commands in subprocess
-def run_command_async(domain, command):
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
-    return domain, process
-
+# subdomain enum
 def passive_subenum(url, d_name, output_dir):
-    # print("Entering passive_subenum function")
-    domain_regex = re.compile(r'^(?!-)([A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,6}$')
+    domain_regex = re.compile(r'^(?!-)([A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,}(?::\d+)?$')
+
+    def is_valid_subdomain(subdomain):
+        # You can customize this function to determine whether a line represents a valid subdomain
+        # For example, you can use regex or other rules to match valid subdomains
+        # Here, we'll consider any non-empty line as a valid subdomain
+        return bool(subdomain)
+
     data_results = []
 
     domains_file = Path(output_dir) / f"{d_name}.txt"  
     pass_sub_file = Path(output_dir) / f"{d_name}_subdomains.txt"
-    waymore_path = Path('src') / 'waymore' / f"waymore.py" # --> user reports timeout issues with this
+    waymore_path = Path('src') / 'waymore' / f"waymore.py"
 
     # Check if the domains file exists (for apex domain flag)
     if domains_file.exists():
         with open(domains_file, 'r') as file:
             domains = [line.strip() for line in file if domain_regex.match(line.strip())]
     else:
-        # If file does not exist, use the url variable directly
         domains = [url] if domain_regex.match(url) else []
 
-    batch_size = 10  # Process a batch of 10 domains at a time - this saves on processing power
-    for i in range(0, len(domains), batch_size):
-        batch_domains = domains[i:i + batch_size]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            futures = {}
-            for domain in batch_domains:
-                futures[executor.submit(run_command_async, domain, ["subfinder", "-d", domain, "-v"])] = domain
-                futures[executor.submit(run_command_async, domain, ["amass", "enum", "-d", domain, "-v"])] = domain
-                futures[executor.submit(run_command_async, domain, ["python3", waymore_path, "-i", url])] = domain ## --> apparently gives issues - need to check this
+    for domain in domains:
 
+        # subfinder
+        try:
+            print(f"Running subfinder for {domain}...")
+            subfinder_cmd = ["subfinder", "-d", domain, "-v"]
+            subfinder_output = subprocess.check_output(subfinder_cmd, stderr=subprocess.STDOUT, text=True)
+            
+            # Filter out lines that do not represent subdomains
+            subdomains = [line.strip() for line in subfinder_output.splitlines() if is_valid_subdomain(line.strip())]
+            
+            for subdomain in subdomains:
+                if domain_regex.match(subdomain):
+                    data_results.append(subdomain)
 
-            for future in concurrent.futures.as_completed(futures):
-                domain = futures[future]
-                try:
-                    _, process = future.result()
-                    output, _ = process.communicate(timeout=300)  # Setting a timeout so the script doesn't hang indefinitely if there are errors
-                    print(f"Results for {domain}: {output}")
-                    for line in output.splitlines():
-                        line = line.strip()
-                        if domain_regex.match(line):
-                            print(line)
-                            data_results.append(line)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    print(f"Command for domain {domain} timed out.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running subfinder for {domain}: {e.output}")
+    
+        ############# Gotta fix this section
+        # # amass
+        # try:
+        #     print("running amass")
+        #     amass_cmd = ["amass", "enum", "-d", domain]
+        #     amass_output = subprocess.check_output(amass_cmd, stderr=subprocess.STDOUT, text=True)
+        #     print(amass_output)
+            
+        #     amass_subdomains = [line.strip() for line in amass_output.splitlines() if is_valid_subdomain(line.strip())]
+            
+        #     for amass_subdomain in amass_subdomains:
+        #          if domain_regex.match(amass_subdomains):
+        #             data_results.append(amass_subdomains)
 
-    # Write results
-    with open(pass_sub_file, "w") as file:
-        for result in data_results:
-            file.write(result + '\n')
+        # except subprocess.CalledProcessError as e:
+        #     print(f"Error running amass for {domain}: {e.output}")
 
-    print("Exiting passive_subenum function")
+        # # waymore
+        # try:
+        #     print("running waymore")
+        #     waymore_cmd = ["python3", waymore_path, "-i", url]
+        #     waymore_output = subprocess.check_output(amass_cmd, stderr=subprocess.STDOUT, text=True)
+            
+        #     waymore_subdomains = [line.strip() for line in waymore_output.splitlines() if is_valid_subdomain(line.strip())]
+            
+        #     for waymore_subdomain in waymore_subdomains:
+        #          if domain_regex.match(waymore_subdomains):
+        #             data_results.append(waymore_subdomains)
+
+        # except subprocess.CalledProcessError as e:
+        #     print(f"Error running waymore for {domain}: {e.output}")
+
+        print(f"{data_results}")
+
+        with open(pass_sub_file, "w+") as file:
+            for result in data_results:
+                file.write(f"{result}\n")
+
     return data_results
 
 # This block is to clean results from httpx since it adds special chars
@@ -132,54 +177,48 @@ def clean_ansi_sequences(input_string):
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
     return ansi_escape.sub('', input_string)
 
+# httpx running 
 
 def tech_used(d_name, output_dir):
     tech_data = []
     subdomain_file = Path(output_dir) / f"{d_name}_subdomains.txt"
     tech_file = Path(output_dir) / f"{d_name}_tech_used.txt"
 
-    with open(subdomain_file, 'r') as file:
-        subdomains = [line.strip() for line in file.readlines()]
+    if subdomain_file.exists():
+        with open(subdomain_file, 'r') as file:
+            subdomains = [line.strip() for line in file.readlines()]
+    else:
+        print(f"Subdomain file {subdomain_file} not found.")
+        return []
 
-    batch_size = 10
-    for i in range(0, len(subdomains), batch_size):
-        batch_subdomains = subdomains[i:i + batch_size]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            futures = {executor.submit(run_command_async, subdomain, ["httpx", "-sc", "-td", "-ip", "-method", "-title", "-cl", "-server", "-u", subdomain]) for subdomain in batch_subdomains}
+    for subdomain in subdomains:
+        try:
+            command = ["httpx", "-sc", "-td", "-ip", "-method", "-title", "-cl", "-server", "-l", subdomain_file]
+            httpx_output = subprocess.check_output(command, stderr=subprocess.STDOUT, text=True)
+            output_cleaned = clean_ansi_sequences(httpx_output)
 
-            for future in concurrent.futures.as_completed(futures):
-                subdomain, process = future.result()
-                output, _ = process.communicate(timeout=300)
-                output_cleaned = clean_ansi_sequences(output)
-
-                parts = re.findall(r'\[([^]]+)]', output_cleaned)
-                # Ensure the list has the correct number of elements for the DataFrame columns
-                while len(parts) < 7:
-                    parts.append(' ')  # Add whitespace for missing parts
-                # Prepend the subdomain to the parts
-                tech_data.append([subdomain] + parts)
+            parts = re.findall(r'\[([^]]+)]', output_cleaned)
+            # Standardize the length of parts to 8 elements, filling missing values with 'NULL'
+            standardized_parts = [p if p else ' ' for p in parts] + [' '] * (8 - len(parts))
+            tech_data.append([subdomain] + standardized_parts)
+        except Exception as e:
+            print(f"Error running httpx for {subdomain}: {e}")
+            tech_data.append([subdomain] + [' '] + [' '] * 7)  # Indicate an error occurred
 
     with open(tech_file, "w") as file:
         for result in tech_data:
-            file.write(' '.join(result) + '\n')
+            file.write(','.join(result) + '\n')  # Using comma as a separator for clarity
 
     return tech_data
 
-def port_scan(url, d_name, output_dir): # add in a port scan
-    pass
 
-
-
-
-
-def main():
-    print("Starting main function")
+def main(): 
     parser = argparse.ArgumentParser(description="Bug bounty tool")
     parser.add_argument("--domain", "-d", required=True, help="Enter the domain name for the target")
     parser.add_argument("--subdomains", "-s", action='store_true', help="enumerate subdomains only (excludes everything else)")
     parser.add_argument("--apex", "-ax", action='store_true', help="Grab apex domains only")
-    parser.add_argument("--tech-detection", "-td", action='store_true', help="Only run subdomains enumeration and tech detection")
-    parser.add_argument("--portscan", "-p", action='store_true', help="basic port scan on subdomains")
+    parser.add_argument("--tech-detection", "-td", action='store_true', help="Only run subdomains enumeration, and tech details")
+    parser.add_argument("--vulnscan", "-v", action='store_true', help="basic port scan on subdomains")
     parser.add_argument("--all", "-a", action='store_true', help="Run all checks default if only -d is selected with nothing else.")
 
     args = parser.parse_args()
@@ -188,7 +227,7 @@ def main():
     sub = args.subdomains
     apex = args.apex
     tech = args.tech_detection
-    port = args.portscan
+    port = args.vulnscan
     all_ = args.all #-- use _ to avoid conflict with the all var
 
     try:
@@ -210,12 +249,31 @@ def main():
         go_packages.set_go_path()
         go_packages.install_go_packages()
 
-        d_name = url.split(".")[0]
-        output_dir = Path("output") / d_name
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # nmap install check
+        if not nmap_install.is_nmap_installed():
+            print("Nmap is not installed. Installing...")
+            if sys.platform.startswith("linux"):
+                nmap_install.install_nmap_linux()
+            elif sys.platform.startswith("darwin"):
+                nmap_install.install_nmap_macos()
+            elif sys.platform.startswith("win"):
+                nmap_install.install_nmap_windows()
+            else:
+                print("Unsupported operating system.")
+                sys.exit(1)
+        else:
+            print("Nmap is already installed.")
+
+        print("Please ensure Nmap is added to your PATH if it's not already configured.")
 
     except Exception as e:
         print(e)
+
+
+    d_name = url.split(".")[0]
+    output_dir = Path("output") / d_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+
 
     if all_:
         try:
@@ -246,8 +304,8 @@ def main():
                 df_apex_domains = pd.DataFrame(apex_domains_data, columns=['Apex Domain'])
                 df_asn_grab = pd.DataFrame(asn_grab_data, columns=['IP Range', 'Organization'])
                 df_subdomains = pd.DataFrame(subdomain_data, columns=['Subdomains'])
-                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
-            
+                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name', ''])
+
                 # Write to Excel
                 df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
                 df_asn_grab.to_excel(writer, sheet_name='ASN_Findings')
@@ -292,27 +350,24 @@ def main():
                 df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
 
         if tech:
-
+            print("grabbing subdomains for tech detection")
+            passive_subenum(url, d_name, output_dir)
+            
             print("Running Tech Detection with HTTPX...")
             tech_used_data = tech_used(d_name, output_dir)
-
 
             print("Writing and organizing results to Excel")
             excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
             with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
 
                 # Create DataFrame for each data type
-                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
+                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'NULL', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
             
                 # Write to Excel
                 df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
         
         if port:
-            print("portscan coming soon...")
-            return
-
-        
-
+            pass
 
 
 if __name__ == "__main__":
