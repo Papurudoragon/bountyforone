@@ -169,6 +169,7 @@ def passive_subenum(url, d_name, output_dir):
         with open(pass_sub_file, "w+") as file:
             for result in data_results:
                 file.write(f"{result}\n")
+            file.close()
 
     return data_results
 
@@ -178,7 +179,6 @@ def clean_ansi_sequences(input_string):
     return ansi_escape.sub('', input_string)
 
 # httpx running 
-
 def tech_used(d_name, output_dir):
     tech_data = []
     subdomain_file = Path(output_dir) / f"{d_name}_subdomains.txt"
@@ -193,23 +193,74 @@ def tech_used(d_name, output_dir):
 
     for subdomain in subdomains:
         try:
+            # Adjust the command if necessary to match your requirements
             command = ["httpx", "-sc", "-td", "-ip", "-method", "-title", "-cl", "-server", "-l", subdomain_file]
+            # Execute the command for each subdomain
             httpx_output = subprocess.check_output(command, stderr=subprocess.STDOUT, text=True)
             output_cleaned = clean_ansi_sequences(httpx_output)
 
+            # Parse the cleaned output; adjust this part according to your actual output format
             parts = re.findall(r'\[([^]]+)]', output_cleaned)
-            # Standardize the length of parts to 8 elements, filling missing values with 'NULL'
-            standardized_parts = [p if p else ' ' for p in parts] + [' '] * (8 - len(parts))
+            # Ensure the parts list has exactly 8 elements (or however many you expect) to match your columns
+            standardized_parts = parts[:8]  # Adjust slicing as needed to fit your expected number of columns
+            if len(standardized_parts) < 8:
+                # Fill missing values to ensure each row has the correct number of elements
+                standardized_parts += [' '] * (8 - len(standardized_parts))
             tech_data.append([subdomain] + standardized_parts)
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             print(f"Error running httpx for {subdomain}: {e}")
-            tech_data.append([subdomain] + [' '] + [' '] * 7)  # Indicate an error occurred
+            tech_data.append([subdomain] + ['Error'] + [' '] * 7)  # Adjust based on expected column count
+        except Exception as e:
+            print(f"Unexpected error for {subdomain}: {e}")
+            tech_data.append([subdomain] + ['Unexpected Error'] + [' '] * 7)  # Adjust accordingly
 
     with open(tech_file, "w") as file:
         for result in tech_data:
-            file.write(','.join(result) + '\n')  # Using comma as a separator for clarity
+            file.write(f"{','.join(result)}\n")  # Using comma as a separator for clarity
 
     return tech_data
+
+
+# use naabu for quick port scan
+def port_scan(d_name, output_dir):
+    naabu_data = []
+    subdomain_file = Path(output_dir) / f"{d_name}_subdomains.txt"
+    naabu_file = Path(output_dir) / f"{d_name}_port_scan.txt"
+
+    if subdomain_file.exists():
+        with open(subdomain_file, 'r') as file:
+            subdomains = [line.strip() for line in file.readlines()]
+    else:
+        print(f"Subdomain file {subdomain_file} not found.")
+        return []
+    
+    for subdomain in subdomains:
+        domain_ports = {}  # Temporary dictionary to hold ports for each domain
+        try:
+            command = ["naabu", "-list", subdomain_file]  # Adjusted to scan individual subdomain
+            naabu_output = subprocess.check_output(command, stderr=subprocess.STDOUT, text=True).strip()
+            print(naabu_output)
+            lines = naabu_output.split('\n')
+            for line in lines:
+                if re.match(r'^[^\s]+:\d+$', line):  # Matches lines like "domain.com:80"
+                    domain, port = line.split(':')
+                    if domain not in domain_ports:
+                        domain_ports[domain] = []
+                    domain_ports[domain].append(port)
+            # Convert domain and ports to the desired string format and add to the results list
+            for domain, ports in domain_ports.items():
+                naabu_data.append(f"{domain}:{','.join(ports)}")
+        except subprocess.CalledProcessError as e:
+            print(f"Naabu error on {subdomain}: {e.output}")
+        except Exception as e:
+            print(f"Unexpected error on {subdomain}: {e}")
+
+    # Write the results to a file
+    with open(naabu_file, 'w') as file:
+        for entry in naabu_data:
+            file.write(f"{entry}\n")
+
+    return naabu_data
 
 
 def main(): 
@@ -218,7 +269,7 @@ def main():
     parser.add_argument("--subdomains", "-s", action='store_true', help="enumerate subdomains only (excludes everything else)")
     parser.add_argument("--apex", "-ax", action='store_true', help="Grab apex domains only")
     parser.add_argument("--tech-detection", "-td", action='store_true', help="Only run subdomains enumeration, and tech details")
-    parser.add_argument("--vulnscan", "-v", action='store_true', help="basic port scan on subdomains")
+    parser.add_argument("--port", "-p", action='store_true', help="basic port scan on subdomains")
     parser.add_argument("--all", "-a", action='store_true', help="Run all checks default if only -d is selected with nothing else.")
 
     args = parser.parse_args()
@@ -227,7 +278,8 @@ def main():
     sub = args.subdomains
     apex = args.apex
     tech = args.tech_detection
-    port = args.vulnscan
+    port = args.port
+
     all_ = args.all #-- use _ to avoid conflict with the all var
 
     try:
@@ -273,6 +325,7 @@ def main():
     d_name = url.split(".")[0]
     output_dir = Path("output") / d_name
     output_dir.mkdir(parents=True, exist_ok=True)
+    sub_file_output = Path(output_dir) / f"{d_name}_subdomains.txt"
 
 
     if all_:
@@ -350,8 +403,9 @@ def main():
                 df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
 
         if tech:
-            print("grabbing subdomains for tech detection")
-            passive_subenum(url, d_name, output_dir)
+            if not os.path.exists(sub_file_output):
+                print("grabbing subdomains for tech detection")
+                passive_subenum(url, d_name, output_dir)
             
             print("Running Tech Detection with HTTPX...")
             tech_used_data = tech_used(d_name, output_dir)
@@ -367,7 +421,22 @@ def main():
                 df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
         
         if port:
-            pass
+            if not os.path.exists(sub_file_output):
+                print("grabbing subdomains for tech detection")
+                passive_subenum(url, d_name, output_dir)
+            
+            print('running port scan')
+            naabu_data_res = port_scan(d_name, output_dir)
+
+            print("Writing and organizing results to Excel")
+            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
+            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+
+                # Create DataFrame for each data type
+                df_naabu_data = pd.DataFrame(naabu_data_res, columns=['Subdomain', 'Port'])
+            
+                # Write to Excel
+                df_naabu_data.to_excel(writer, sheet_name='Port_Scan')
 
 
 if __name__ == "__main__":
