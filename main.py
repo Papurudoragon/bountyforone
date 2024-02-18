@@ -23,6 +23,8 @@ import random
 import requirements
 
 
+
+
 # arguments to add for custom use
 parser = argparse.ArgumentParser(description="Bounty for one - Bug bounty tool")
 parser.add_argument("-u", "--url", required=True, help="Enter the domain name for the target (e.g example.com)")
@@ -258,10 +260,10 @@ commands = {
         f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v"
     ],
     "spider_output": [
-        f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v -o {spider}"
+        f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v >> {spider}"
     ],
     "spider_url_only_output":[
-        f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v -o {spider}"
+        f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v >> {spider}"
     ]
 }
 
@@ -434,8 +436,12 @@ def output_to_excel():
     # I need format for excel, before ingesting
     try:
         with open(tech, 'r') as tech_file:
-            tech_content = tech_file.read()
-            tech_xlsx.append(tech_content)
+            for line in tech_file:
+                clean_pattern = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+                cleaned_line = re.sub(clean_pattern, '', line)
+                tech_parts = cleaned_line.strip().split('[')
+                tech_content = [part.replace(']', '').strip() for part in tech_parts]
+                tech_xlsx.append(tech_content)
     except FileNotFoundError:
         pass
 
@@ -468,7 +474,7 @@ def output_to_excel():
 
 
     # lets define out excel file:
-    excel_file = base_dir / f"recon_spreadsheet"
+    excel_file = base_dir / f"recon_spreadsheet.xlsx"
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
 
         # create dataframs for the posted results
@@ -548,6 +554,8 @@ def main():
             run_commands(commands["vulnscan_output"])
             run_commands(commands["spider_output"])
 
+            output_to_excel()
+
             return
 
 
@@ -576,7 +584,7 @@ def main():
 
                 if _spider:
                     run_commands(commands["spider_url_only"])
-                
+
                 return
             
             if _output:
@@ -593,7 +601,25 @@ def main():
 
                 if _spider:
                     run_commands(commands["spider_url_only_output"])
+
+                return
+            
+            if _outputexcel:
+                # remove existing files if yes
+                handle_existing_files()
+                if _ports:
+                    run_commands(commands["portscan_url_only_output"])
                 
+                if _tech_detection:
+                    run_commands(commands["tech_detection_url_only_output"])
+
+                if _vulnscan:
+                    run_commands(commands["vulnscan_url_only_output"])
+
+                if _spider:
+                    run_commands(commands["spider_url_only_output"])
+                
+                output_to_excel()
                 return
 
 
@@ -638,7 +664,7 @@ def main():
                         run_commands(commands["subdomain_no_apex_output"])
                     
                     run_commands(commands["vulnscan"])
-                
+
                 return
             
             if _output:
@@ -676,13 +702,53 @@ def main():
                     if not subdomains.exists():
                         run_commands(commands["subdomain_no_apex_output"])
                     
-                    run_commands(commands["vulnscan_output"]) 
+                    run_commands(commands["vulnscan_output"])
+
+                return
+
+            if _outputexcel():
+                # remove existing files if yes
+                handle_existing_files()
+                if _subdomains:
+
+                    run_commands(commands["subdomain_no_apex_output"])
+
+                if _ports:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+
+                    run_commands(commands["portscan_output"])
+
                 
+                if _tech_detection:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+                    
+                    run_commands(commands["tech_detection_output"])
+
+                
+                if _spider:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+                    
+                    run_commands(commands["spider_output"])
+
+                
+                if _vulnscan:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+                    
+                    run_commands(commands["vulnscan_output"])
+                
+                output_to_excel()
+
                 return
 
         
 
-
+        # run the apex domains
         if _apex:
             if not any([_outputs]):
                 run_apex()
@@ -759,8 +825,44 @@ def main():
                     run_commands(commands["vulnscan_output"])
                 
                 return
+            
+            if _outputexcel:
+                # remove existing files if yes
+                handle_existing_files()
+                run_apex()
+                
+                if _subdomains:
 
+                    run_commands(commands["subdomains_apex_output"])
+                
+                if _ports:
 
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+
+                    run_commands(commands["portscan_output"])
+                
+                if _tech_detection:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+                    
+                    run_commands(commands["tech_detection_output"])
+                
+                if _spider:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+                    
+                    run_commands(commands["spider_output"])
+                
+                if _vulnscan:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+                    
+                    run_commands(commands["vulnscan_output"])
+                
+                output_to_excel()
+                return
 
 
             ################# LEFT OFF HERE
@@ -776,6 +878,8 @@ if __name__ == "__main__":
 ##### I need to add outputs for all and also the xlsx outputs   ---> so far only .txt (-o) is completed
 
 # arg help page
+# need to add a logo and help page
+# change the way apex and asn handle -o (give it a non -o output)
 # readme.md
 # requirements.txt ---> inatall paths include go_requirements.py - include that in main
 # add more tools
