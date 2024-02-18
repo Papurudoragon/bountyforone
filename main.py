@@ -381,17 +381,6 @@ def handle_existing_files():
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 # handle_existing_files()
 # run_apex()
 # asn_grab()
