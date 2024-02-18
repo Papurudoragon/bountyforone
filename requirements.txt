@@ -18,3 +18,9 @@ nuclei
 gospider
 
 
+
+
+notes:
+
+subdomains:
+

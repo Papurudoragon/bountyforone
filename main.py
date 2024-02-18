@@ -72,10 +72,12 @@ curr_memory = 0 # we gotta limit memory usage to handle processing with less RAM
 apex_xlsx = []
 asn_xlsx = []
 subdomain_xlsx = []
+live_subdomains_xlsx = []
 tech_xlsx = []
 port_scan_xlsx = []
 vuln_scan_xlsx = []
 dir_search_xlsx = []
+spider_xlsx = []
 js_spider_xlsx = []
 
 
@@ -199,16 +201,16 @@ commands = {
 
 
     "tech_detection": [
-        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_all} {subdomains}"
+        f"httpx -sc -td -ip -method -cl {httpx_flag_all} {subdomains}"
     ],
     "tech_detection_url_only": [
-        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_url} {_url}"
+        f"httpx -sc -td -ip -method -cl {httpx_flag_url} {_url}"
     ],
     "tech_detection_output": [
-        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_all} {subdomains} -o {tech}"
+        f"httpx -sc -td -ip -method -cl {httpx_flag_all} {subdomains} -o {tech}"
     ],
     "tech_detection_url_only_output": [
-        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_url} {_url} -o {tech}"
+        f"httpx -sc -td -ip -method -cl {httpx_flag_url} {_url} -o {tech}"
     ],
 
 
@@ -216,7 +218,7 @@ commands = {
     "subdomain_takeover": [
         f"subzy run --targets {live_subs}"
     ],
-        "subdomain_takeover_output": [
+    "subdomain_takeover_output": [
         f"subzy run --targets {live_subs} >> {sub_takeover}"
     ],
 
@@ -236,27 +238,27 @@ commands = {
 
 
     "vulnscan": [
-        f"nuclei {nuclei_flag_all} {subdomains} -t /"
+        f"nuclei {nuclei_flag_all} {live_subs} -t http/"
     ],
     "vulnscan_url_only": [
-       f"nuclei {nuclei_flag_url} {_url} -t /"
+        f"nuclei {nuclei_flag_url} {_url} -t http/"
     ],
     "vulnscan_output": [
-        f"nuclei {nuclei_flag_all} {subdomains} -t / -o {vulnscan}"
+         f"nuclei {nuclei_flag_all} {live_subs} -t http/ -o {vulnscan}"
     ],
     "vulnscan_url_only_output": [
-       f"nuclei {nuclei_flag_url} {_url} -t / -o {vulnscan}"
+        f"nuclei {nuclei_flag_url} {_url} -t http/ -o {vulnscan}"
     ],
 
 
     "spider": [
-        f"gospider {gospider_flag_all} {subdomains} -t 2 --js --sitemap --robots -v"
+        f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v"
     ],
     "spider_url_only":[
         f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v"
     ],
     "spider_output": [
-        f"gospider {gospider_flag_all} {subdomains} -t 2 --js --sitemap --robots -v -o {spider}"
+        f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v -o {spider}"
     ],
     "spider_url_only_output":[
         f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v -o {spider}"
@@ -306,9 +308,6 @@ def run_commands(commands):
             output = subprocess.check_output(commands[i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
             print(output)
             time.sleep(1)
-            
-####################################
-
             i += 1
     except subprocess.CalledProcessError as e:
         print(f'Command {commands} failed with error: {e.stderr}')
@@ -324,9 +323,18 @@ def asn_grab():
     if response.status_code == 200:
         data = response.json()
 
-        if 'data' in data and 'ipv4_prefixes' in data['data']:
-            for prefix in data['data']['ipv4_prefixes']:
-                print(f"{prefix['ip']}, {prefix['name']}")
+        if not any([_outputall]):
+            if 'data' in data and 'ipv4_prefixes' in data['data']:
+                for prefix in data['data']['ipv4_prefixes']:
+                    print(f"{prefix['ip']}, {prefix['name']}")
+        
+        if _output:
+            with open(asn, "w+") as file1:
+                if 'data' in data and 'ipv4_prefixes' in data['data']:
+                    for prefix in data['data']['ipv4_prefixes']:
+                        file1.write(f"{prefix['ip']}, {prefix['name']}\n")
+                        print(f"{prefix['ip']}, {prefix['name']}")
+
         
         else:
             print("no ASNs found")
@@ -378,6 +386,110 @@ def handle_existing_files():
 ###### ---------------------------------------------------------------------------------------------------------------------------------------
 
 
+def output_to_excel():
+    """all_output = (
+    apex,
+    asn,
+    subdomains,
+    live_subs,
+    sub_takeover,
+    tech,
+    portscan,
+    vulnscan,
+    spider
+    )"""
+
+    # read several files
+    
+    try:
+        with open(apex, 'r') as apex_file:
+            apex_content = apex_file.read()
+            apex_xlsx.append(apex_content)
+    except FileNotFoundError:
+        pass
+
+    try:
+        with open(asn, 'r') as asn_file:
+            asn_content = asn_file.read()
+            asn_xlsx.append(asn_content)
+    except FileNotFoundError:
+        pass
+
+    try:
+        with open(subdomains, 'r') as subdomains_file:
+            sub_content = subdomains_file.read()
+            subdomain_xlsx.append(sub_content)
+    except FileNotFoundError:
+        pass
+
+    
+    try:
+        with open(live_subs, 'r') as live_file:
+            live_content = live_file.read()
+            live_subdomains_xlsx.append(live_content)
+    except FileNotFoundError:
+        pass
+
+
+    # I need format for excel, before ingesting
+    try:
+        with open(tech, 'r') as tech_file:
+            tech_content = tech_file.read()
+            tech_xlsx.append(tech_content)
+    except FileNotFoundError:
+        pass
+
+
+    # I need to format this for excel before ingesting
+    try:
+        with open(portscan, 'r') as port_file:
+            port_content = port_file.read()
+            port_for_csv = port_content.replace(":", ", ")
+            port_scan_xlsx.append(port_for_csv)
+    except FileNotFoundError:
+        pass
+
+
+    try:
+        with open(vulnscan, 'r') as vuln_file:
+            vuln_content = vuln_file.read()
+            vuln_scan_xlsx.append(vuln_content)
+    except FileNotFoundError:
+        pass
+
+
+    try:
+        with open(spider, 'r') as spider_file:
+            spider_content = spider_file.read()
+            spider_xlsx.append(spider_content)
+    except FileNotFoundError:
+        pass
+
+
+
+    # lets define out excel file:
+    excel_file = base_dir / f"recon_spreadsheet"
+    with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
+
+        # create dataframs for the posted results
+        df_apex = pd.DataFrame(apex_xlsx, columns=['Apex Domains'])
+        df_asn = pd.DataFrame(asn_xlsx, columns=['ASN IP', 'Domain'])
+        df_subdomains = pd.DataFrame(subdomain_xlsx, columns=['Subdomains'])
+        df_live = pd.DataFrame(live_subdomains_xlsx, columns=['Live Subdomains'])
+        df_tech = pd.DataFrame(tech_xlsx, columns=['Subdomains', 'Status Code', 'HTTP Method', 'Content-Size', 'IP Address', 'Tech Stack'])
+        df_port = pd.DataFrame(port_scan_xlsx, columns=['Domain', 'Port'])
+        df_vuln = pd.DataFrame(vuln_scan_xlsx, columns=['Vuln Check', 'Method', 'Severity', 'Domains', 'Findings'])
+        df_spider = pd.DataFrame(spider_xlsx, columns=['Spider Directories'])
+
+        # export dataframes to xlsx
+        df_apex.to_excel(writer, sheet_name='apex_domains')
+        df_asn.to_excel(writer, sheet_name='asn_findings')
+        df_subdomains.to_excel(writer, sheet_name='subdomains')
+        df_live.to_excel(writer, sheet_name='live_subdomains')
+        df_tech.to_excel(writer, sheet_name='tech_stack')
+        df_port.to_excel(writer, sheet_name='port_scan')
+        df_vuln.to_excel(writer, sheet_name='vuln_findings')
+        df_spider.to_excel(writer, sheet_name='spider_findings')
 
 
 
@@ -385,6 +497,8 @@ def handle_existing_files():
 # run_apex()
 # asn_grab()
 # run_commands()
+
+
 
 def main():
 
@@ -439,93 +553,93 @@ def main():
 
 
         if _asn:
+            handle_existing_files()
             asn_grab()
+            
             return
 
 
 
 
-
+        # if subdomains or apex is specified
         if not _subdomains and not _apex:
             if not any([_outputs]):
                 if _ports:
                     run_commands(commands["portscan_url_only"])
                     
-                    return
                 
                 if _tech_detection:
                     run_commands(commands["tech_detection_url_only"])
-                    return
 
                 if _vulnscan:
                     run_commands(commands["vulnscan_url_only"])
-                    return
 
                 if _spider:
                     run_commands(commands["spider_url_only"])
-                    return
+                
+                return
             
             if _output:
                 # remove existing files if yes
                 handle_existing_files()
                 if _ports:
                     run_commands(commands["portscan_url_only_output"])
-                    
-                    return
                 
                 if _tech_detection:
                     run_commands(commands["tech_detection_url_only_output"])
-                    return
 
                 if _vulnscan:
                     run_commands(commands["vulnscan_url_only_output"])
-                    return
 
                 if _spider:
                     run_commands(commands["spider_url_only_output"])
-                    return
+                
+                return
 
 
 
 
-
+        # is subdomains is specified but not apex (output automatically for subdomains for file read)
         if not _apex:
+            # remove existing files if yes
+            handle_existing_files()
             if not any([_outputs]):
 
                 if _subdomains:
 
-                    run_commands(commands["subdomain_no_apex"])
-                    return
+                    run_commands(commands["subdomain_no_apex_output"])
 
                 if _ports:
 
                     if not subdomains.exists():
-                        run_commands(commands["subdomain_no_apex"])
+                        run_commands(commands["subdomain_no_apex_output"])
+                        
 
                     run_commands(commands["portscan"])
-                    return
+
                 
                 if _tech_detection:
                     if not subdomains.exists():
-                        run_commands(commands["subdomain_no_apex"])
+                        run_commands(commands["subdomain_no_apex_output"])
                     
                     run_commands(commands["tech_detection"])
-                    return
+
                 
                 if _spider:
                     if not subdomains.exists():
-                        run_commands(commands["subdomain_no_apex"])
+                        run_commands(commands["subdomain_no_apex_output"])
                     
                     run_commands(commands["spider"])
-                    return
+
                 
                 if _vulnscan:
 
                     if not subdomains.exists():
-                        run_commands(commands["subdomain_no_apex"])
+                        run_commands(commands["subdomain_no_apex_output"])
                     
                     run_commands(commands["vulnscan"])
-                    return
+                
+                return
             
             if _output:
                 # remove existing files if yes
@@ -533,7 +647,7 @@ def main():
                 if _subdomains:
 
                     run_commands(commands["subdomain_no_apex_output"])
-                    return
+    
 
                 if _ports:
 
@@ -541,29 +655,30 @@ def main():
                         run_commands(commands["subdomain_no_apex_output"])
 
                     run_commands(commands["portscan_output"])
-                    return
+
                 
                 if _tech_detection:
                     if not subdomains.exists():
                         run_commands(commands["subdomain_no_apex_output"])
                     
                     run_commands(commands["tech_detection_output"])
-                    return
+
                 
                 if _spider:
                     if not subdomains.exists():
                         run_commands(commands["subdomain_no_apex_output"])
                     
                     run_commands(commands["spider_output"])
-                    return
+     
                 
                 if _vulnscan:
 
                     if not subdomains.exists():
                         run_commands(commands["subdomain_no_apex_output"])
                     
-                    run_commands(commands["vulnscan_output"])
-                    return
+                    run_commands(commands["vulnscan_output"]) 
+                
+                return
 
         
 
@@ -575,7 +690,7 @@ def main():
                 if _subdomains:
 
                     run_commands(commands["subdomains_apex"])
-                    return
+          
                 
                 if _ports:
 
@@ -583,21 +698,21 @@ def main():
                         run_commands(commands["subdomain_apex"])
 
                     run_commands(commands["portscan"])
-                    return
+              
                 
                 if _tech_detection:
                     if not subdomains.exists():
                         run_commands(commands["subdomain_apex"])
                     
                     run_commands(commands["tech_detection"])
-                    return
+            
                 
                 if _spider:
                     if not subdomains.exists():
                         run_commands(commands["subdomain_apex"])
                     
                     run_commands(commands["spider"])
-                    return
+           
                 
                 if _vulnscan:
 
@@ -605,7 +720,8 @@ def main():
                         run_commands(commands["subdomain_apex"])
                     
                     run_commands(commands["vulnscan"])
-                    return
+                
+                return
             
             if _output:
                 # remove existing files if yes
@@ -615,7 +731,6 @@ def main():
                 if _subdomains:
 
                     run_commands(commands["subdomains_apex_output"])
-                    return
                 
                 if _ports:
 
@@ -623,21 +738,18 @@ def main():
                         run_commands(commands["subdomain_apex_output"])
 
                     run_commands(commands["portscan_output"])
-                    return
                 
                 if _tech_detection:
                     if not subdomains.exists():
                         run_commands(commands["subdomain_apex_output"])
                     
                     run_commands(commands["tech_detection_output"])
-                    return
                 
                 if _spider:
                     if not subdomains.exists():
                         run_commands(commands["subdomain_apex_output"])
                     
                     run_commands(commands["spider_output"])
-                    return
                 
                 if _vulnscan:
 
@@ -645,7 +757,8 @@ def main():
                         run_commands(commands["subdomain_apex_output"])
                     
                     run_commands(commands["vulnscan_output"])
-                    return
+                
+                return
 
 
 
@@ -653,16 +766,8 @@ def main():
             ################# LEFT OFF HERE
 
 
-
-
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
 
 
 
@@ -678,3 +783,7 @@ if __name__ == "__main__":
 # optimize
 # grab js, parameters
 # fyi - if you want to specify a subdomain, just save it in an output folder as "output/domain/domain_subdomains.txt"
+# add shodan subdomain support
+# add github enum
+# add bbot enum
+# add permutations
