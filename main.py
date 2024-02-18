@@ -10,17 +10,10 @@ import re
 import pandas as pd
 import concurrent.futures
 sys.path.append('src/')
-import domain_relations
-import waymore_install
-import nmap_install
 sys.path.append('bin/')
 import go_packages
-import threading
-import socket
-import nmap3
 from pathlib import Path
 import random
-import requirements
 
 
 
@@ -36,7 +29,7 @@ parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln s
 parser.add_argument("-sp", "--spider", action='store_true', help="basic spider on subdomains, apex, or url")
 parser.add_argument("-as", "--asn",  action='store_true', help="grab asn information",)
 parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
-parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format")
+parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format as well as txt")
 parser.add_argument("-oa", "--output-all",  action='store_true', help="output results in all formats (txt, xlsx)")
 
 # flag for all checks
@@ -129,6 +122,9 @@ portscan = base_dir / f"portscan_{domain_name}.txt"
 vulnscan = base_dir / f"vulnscan_{domain_name}.txt"
 spider = base_dir / f"spider_{domain_name}.txt"
 
+# this is for the excel file
+excel_file = base_dir / f"{domain_name}_recon_spreadsheet.xlsx"
+
 # This is just here to add more output later and make it cleaner
 all_output = (
     apex,
@@ -139,7 +135,8 @@ all_output = (
     tech,
     portscan,
     vulnscan,
-    spider
+    spider,
+    excel_file
     )
 
 
@@ -345,7 +342,7 @@ def asn_grab():
         print(f"failed to fetch asn data: {response.status_code}")
 
 
-# handle the existing files (prompt user) and do some stuff:
+# handle the existing files (prompt user) and do some stuff: #######
 def handle_existing_files():
     existing_files = [file for file in all_output if file.exists()]
     if not existing_files:
@@ -355,25 +352,105 @@ def handle_existing_files():
         prompt = input("\n\nwould you like to overwrite existing data? (yes or no):\t")
         prompt = prompt.lower()
 
+
+
         if prompt == 'yes':
-            for i in range(len(all_output)):
-                file_path = Path(all_output[i]) # this needs to iterate
+            if _all:
+                for i in range(len(all_output)):
+                    file_path = Path(all_output[i]) # this needs to iterate
 
-                # Delete the file is this option is selected.
-                if platform.system() == 'Windows':
-                    subprocess.run(['del', file_path], check=True, shell=True)
-                    i += 1
-                    continue
+                    # Delete the file is this option is selected.
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', file_path], check=True, shell=True)
+                        i += 1
+                        continue
 
-                else:
-                    subprocess.run(['rm', file_path], check=True)
-                    i += 1
-                    continue
+                    else:
+                        subprocess.run(['rm', file_path], check=True)
+                        i += 1
+                        continue
 
-            print("files have been removed and will be recreated")
-            time.sleep(5)
+                print("files have been removed and will be recreated")
+                time.sleep(5)
 
-            return
+                return
+        
+            else:
+
+
+
+                if _apex:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', apex], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', apex], check=True)
+
+    
+
+
+                if _asn:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', asn], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', asn], check=True)
+                    
+            
+                
+                if _ports:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', portscan], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', portscan], check=True)
+
+                
+
+                if _subdomains:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', subdomains], check=True, shell=True)
+                        subprocess.run(['del', live_subs], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', subdomains], check=True)
+                        subprocess.run(['rm', live_subs], check=True)
+
+
+
+                if _spider:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', spider], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', spider], check=True)
+
+
+
+                if _tech_detection:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', tech], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', tech], check=True)
+
+                if _vulnscan:
+                    if platform.system() == 'Windows':
+                        subprocess.run(['del', vulnscan], check=True, shell=True)
+                        
+
+                    else:
+                        subprocess.run(['rm', vulnscan], check=True)
+
+
+                return
+
 
         elif prompt == 'no':
             print("files will be appended to existing results (This may take up more disc space and lead to duplicates)")
@@ -405,35 +482,39 @@ def output_to_excel():
     
     try:
         with open(apex, 'r') as apex_file:
-            apex_content = apex_file.read()
-            apex_xlsx.append(apex_content)
+            apex_content = apex_file.read().splitlines()
+            for line in apex_content:
+                apex_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
     try:
         with open(asn, 'r') as asn_file:
-            asn_content = asn_file.read()
-            asn_xlsx.append(asn_content)
+            asn_content = asn_file.read().splitlines()
+            for line in asn_content:
+                asn_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
     try:
         with open(subdomains, 'r') as subdomains_file:
-            sub_content = subdomains_file.read()
-            subdomain_xlsx.append(sub_content)
+            sub_content = subdomains_file.read().splitlines()
+            for line in sub_content:
+                subdomain_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
     
     try:
         with open(live_subs, 'r') as live_file:
-            live_content = live_file.read()
-            live_subdomains_xlsx.append(live_content)
+            live_content = live_file.read().splitlines()
+            for line in live_content:
+                live_subdomains_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
 
-    # I need format for excel, before ingesting
+    # httpx results need a but more cleaning and formatting
     try:
         with open(tech, 'r') as tech_file:
             for line in tech_file:
@@ -446,35 +527,36 @@ def output_to_excel():
         pass
 
 
-    # I need to format this for excel before ingesting
+    # naabu needs a bit for cleaning and formatting
     try:
         with open(portscan, 'r') as port_file:
-            port_content = port_file.read()
-            port_for_csv = port_content.replace(":", ", ")
-            port_scan_xlsx.append(port_for_csv)
+                for line in port_file:
+                    host, port = line.strip().split(':')
+                    port_scan_xlsx.append((host, port))
     except FileNotFoundError:
         pass
 
 
     try:
         with open(vulnscan, 'r') as vuln_file:
-            vuln_content = vuln_file.read()
-            vuln_scan_xlsx.append(vuln_content)
+            vuln_content = vuln_file.read().splitlines()
+            for line in vuln_content:
+                vuln_scan_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
 
     try:
         with open(spider, 'r') as spider_file:
-            spider_content = spider_file.read()
-            spider_xlsx.append(spider_content)
+            spider_content = spider_file.read().splitlines()
+            for line in spider_content:
+                spider_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
 
 
     # lets define out excel file:
-    excel_file = base_dir / f"recon_spreadsheet.xlsx"
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
 
         # create dataframs for the posted results
@@ -563,10 +645,6 @@ def main():
         if _asn:
             handle_existing_files()
             asn_grab()
-            
-            return
-
-
 
 
         # if subdomains or apex is specified
