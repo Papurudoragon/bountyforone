@@ -1,4 +1,4 @@
-This tool grabs recon info from a domain and converts it into readable excel
+This tool simplifies the recon process for bugbounty
 
 usage:
 

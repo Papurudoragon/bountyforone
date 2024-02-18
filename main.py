@@ -13,433 +13,679 @@ sys.path.append('src/')
 import domain_relations
 import waymore_install
 import nmap_install
-
 sys.path.append('bin/')
 import go_packages
-
 import threading
 import socket
 import nmap3
 from pathlib import Path
+import random
+import requirements
 
 
-# global vars
-# --- update later
+# arguments to add for custom use
+parser = argparse.ArgumentParser(description="Bounty for one - Bug bounty tool")
+parser.add_argument("-u", "--url", required=True, help="Enter the domain name for the target (e.g example.com)")
+parser.add_argument("-s", "--subdomains", action='store_true', help="first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains")
+parser.add_argument("-ax", "--apex", action='store_true', help="Grab apex domains (include this option to also run options against discovered apex domains)")
+parser.add_argument("-td", "--tech-detection", action='store_true', help="run technnology detection against a single url (or discovere and run against apex and/or subdomains if -s is selected)")
+parser.add_argument("-p", "--port", action='store_true', help="basic port scan on subdomains, apex, or url")
+parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln scan on subdomains, apex, or url")
+parser.add_argument("-sp", "--spider", action='store_true', help="basic spider on subdomains, apex, or url")
+parser.add_argument("-as", "--asn",  action='store_true', help="grab asn information",)
+parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
+parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format")
+parser.add_argument("-oa", "--output-all",  action='store_true', help="output results in all formats (txt, xlsx)")
 
-# Grab the apex domains
-def apex_domains(url, d_name, output_dir):
-    print("Entering apex_domains function")
+# flag for all checks
+parser.add_argument("-a", "--all", action='store_true', help="Run all checks default if only -u is selected with nothing else.")
+
+args = parser.parse_args()
+
+_url = args.url
+_subdomains = args.subdomains
+_apex = args.apex
+_tech_detection = args.tech_detection
+_ports = args.port
+_vulnscan = args.vulnscan
+_spider = args.spider
+_asn = args.asn
+_output = args.output
+_outputexcel = args.output_excel
+_outputall = args.output_all
+
+# I want all to be default if nothing selected
+_all = args.all
+
+_outputs = any([_output, _outputexcel, _outputall])
+_flags = any([_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn])
+
+
+
+## Global vars
+domain_name = _url.split(".")[0]
+base_dir = Path('output') / domain_name
+max_memory = 0 # we gotta limit memory usage to handle processing with less RAM
+curr_memory = 0 # we gotta limit memory usage to handle processing with less RAM
+
+# xlsx dataframes
+apex_xlsx = []
+asn_xlsx = []
+subdomain_xlsx = []
+tech_xlsx = []
+port_scan_xlsx = []
+vuln_scan_xlsx = []
+dir_search_xlsx = []
+js_spider_xlsx = []
+
+
+
+## User agents for request making
+user_agent = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML, like Gecko) Version/9.0.2 Safari/601.3.9",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/99.0.1150.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:67.0) Gecko/20100101 Firefox/67.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0",
+    "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36",
+    "Mozilla/5.0 (X11; CrOS x86_64 8172.45.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.64 Safari/537.36",
+    "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)",
+    "Mozilla/5.0 (iPad; CPU OS 7_1_2 like Mac OS X) AppleWebKit/537.51.2 (KHTML, like Gecko) Version/7.0 Mobile/11D257 Safari/9537.53",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 8_4_1 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Version/8.0 Mobile/12H321 Safari/600.1.4",
+]
+
+# set the user-agent header at random
+headers = {'User-Agent': random.choice(user_agent)}
+
+# set the script timeout
+timeout = 300
+
+
+
+## Output Section
+###### ----------------------------------------------------------------------------------------------------------------------  
+
+# assign output file names
+apex = base_dir / f"apex_{domain_name}.txt"
+asn = base_dir / f"asn_{domain_name}.txt"
+subdomains = base_dir / f"subdomains_{domain_name}.txt"
+live_subs = base_dir / f"live_subs_{domain_name}.txt"
+sub_takeover = base_dir / f"sub_takeover_{domain_name}.txt"
+tech = base_dir / f"tech_{domain_name}.txt"
+portscan = base_dir / f"portscan_{domain_name}.txt"
+vulnscan = base_dir / f"vulnscan_{domain_name}.txt"
+spider = base_dir / f"spider_{domain_name}.txt"
+
+# This is just here to add more output later and make it cleaner
+all_output = (
+    apex,
+    asn,
+    subdomains,
+    live_subs,
+    sub_takeover,
+    tech,
+    portscan,
+    vulnscan,
+    spider
+    )
+
+
+# output file directory for the file names
+output_path = Path("output") / domain_name
+output_path.mkdir(parents=True, exist_ok=True)
+
+
+
+# Command flags
+# dL for list of apex, -d for single url
+subfinder_flag_all = "-dL"
+subfinder_flag_url = "-d"
+
+# for single and subdomains
+httpx_flag_all = "-l" 
+httpx_flag_url = "-u"
+
+naabu_flag_all = "-list" 
+naabu_flag_url = "-host"
+naabu_ports = "21,22,25,53,80,389,443,8080,3306,5432"
+
+nuclei_flag_all = "-l" 
+nuclei_flag_url = "-u"
+
+gospider_flag_all = "-S"
+gospider_flag_url = "-s"
+
+
+
+# commands:
+commands = {
+    "apex": [
+        f"python3 src/check_mdi-main/check_mdi.py -d {_url}"
+    ],
+    "apex_output": [
+        f"python3 src/check_mdi-main/check_mdi.py -d {_url} >> {apex}"
+    ],
+
+
+    "subdomains_apex": [
+        f"subfinder {subfinder_flag_all} {apex} -v",
+        # f"amass enum -d {apex}",
+        f"httpx {httpx_flag_all} {subdomains}"
+    ],
+    "subdomain_no_apex": [
+        f"subfinder {subfinder_flag_url} {_url} -v",
+        # f"amass enum -d {_url}",
+        f"httpx {httpx_flag_all} {subdomains}"
+    ],
+    "subdomains_apex_output": [
+        f"subfinder {subfinder_flag_all} {apex} -v -o {subdomains} ",
+        # f"amass enum -d {apex}",
+        f"httpx {httpx_flag_all} {subdomains} -v -o {live_subs}"
+    ],
+    "subdomain_no_apex_output": [
+        f"subfinder {subfinder_flag_url} {_url} -v -o {subdomains}",
+        # f"amass enum -d {_url}",
+        f"httpx {httpx_flag_all} {subdomains} -o {live_subs}"
+    ],
+
+
+    "tech_detection": [
+        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_all} {subdomains}"
+    ],
+    "tech_detection_url_only": [
+        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_url} {_url}"
+    ],
+    "tech_detection_output": [
+        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_all} {subdomains} -o {tech}"
+    ],
+    "tech_detection_url_only_output": [
+        f"httpx -sc -td -ip -method -title -cl -server {httpx_flag_url} {_url} -o {tech}"
+    ],
+
+
+
+    "subdomain_takeover": [
+        f"subzy run --targets {live_subs}"
+    ],
+        "subdomain_takeover_output": [
+        f"subzy run --targets {live_subs} >> {sub_takeover}"
+    ],
+
+
+    "portscan": [
+        f"naabu {naabu_flag_all} {subdomains} -v -p {naabu_ports}"
+    ],
+    "portscan_url_only": [
+        f"naabu {naabu_flag_url} {_url} -v -p {naabu_ports}"
+    ],
+    "portscan_output": [
+        f"naabu {naabu_flag_all} {subdomains} -v -p {naabu_ports} -o {portscan}"
+    ],
+    "portscan_url_only_output": [
+        f"naabu {naabu_flag_url} {_url} -v -p {naabu_ports} -o {portscan}"
+    ],
+
+
+    "vulnscan": [
+        f"nuclei {nuclei_flag_all} {subdomains} -t /"
+    ],
+    "vulnscan_url_only": [
+       f"nuclei {nuclei_flag_url} {_url} -t /"
+    ],
+    "vulnscan_output": [
+        f"nuclei {nuclei_flag_all} {subdomains} -t / -o {vulnscan}"
+    ],
+    "vulnscan_url_only_output": [
+       f"nuclei {nuclei_flag_url} {_url} -t / -o {vulnscan}"
+    ],
+
+
+    "spider": [
+        f"gospider {gospider_flag_all} {subdomains} -t 2 --js --sitemap --robots -v"
+    ],
+    "spider_url_only":[
+        f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v"
+    ],
+    "spider_output": [
+        f"gospider {gospider_flag_all} {subdomains} -t 2 --js --sitemap --robots -v -o {spider}"
+    ],
+    "spider_url_only_output":[
+        f"gospider {gospider_flag_url} {_url} -t 2 --js --sitemap --robots -v -o {spider}"
+    ]
+}
+
+
+##### -----------------------------------------------------------------------------------------------------------------------------
+
+
+"""The section below is to run commands"""
+
+
+#### -----------------------------------------------------------------------------------------------------------------------------------
+
+def run_apex():
+    sorted_output = ""
     try:
-        domain_regex = r'^(?!-)([A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,6}$'
-        output_file = output_dir / f"{d_name}.txt"
-        print(f"Output file path: {output_file}")
-
-        check_mdi_cmd = ["python3", "src/check_mdi-main/check_mdi.py", "-d", url]
-        # print(f"Executing command: {check_mdi_cmd}")
-        check_mdi = subprocess.run(check_mdi_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        # print(f"Subprocess output: {check_mdi.stdout}")
-        # print(f"Subprocess error: {check_mdi.stderr}")
-
-        data_results = []
-        with open(output_file, "w+", encoding='utf-8') as file:
-            for line in check_mdi.stdout.splitlines():
-                line = line.strip()
-                if re.match(domain_regex, line):
-                    file.write(line + '\n')
-                    data_results.append(line)
-        
-        return data_results
-
-    except Exception as e:
-        print(f"Error in apex_domains: {e}")
-    print("Exiting apex_domains function")
-
-# Grab the ASNs
-def asn_grab(url, d_name, output_dir):
-    print("Entering asn_grab function")
-    try:
-        link = f"https://api.bgpview.io/search?query_term={d_name}" # ---> bgp_view uses syntax like search=example, instead of search=example.com
-        response = requests.get(link)
-    
-        if response.status_code == 200:
-            data = response.json()
-            ipv4_prefixes = data.get('data', {}).get('ipv4_prefixes', [])
-        
-            asn_findings_file = Path(output_dir) / 'asn_findings.txt'
-            # print(f"ASN findings file path: {asn_findings_file}")
-
-            with open(asn_findings_file, 'w', encoding='utf-8') as file:
-                for prefix in ipv4_prefixes:
-                    file.write(f"{prefix['ip']} - {prefix['name']}\n")
-        else:
-            print(f"Failed to fetch data: HTTP {response.status_code}")
-    except Exception as e:
-        print(f"Error in asn_grab: {e}")
-    print("Exiting asn_grab function")
-
-
-# commend to run subprocess (do not do async to not run up RAM)
-    
-def run_command(domain, command):
-    try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
-        stdout, stderr = process.communicate(timeout=300)
-        return domain, stdout, stderr
+        # iterate through the commands and run each of them
+        for i in range(len(commands["apex"])):
+            output = subprocess.check_output(commands["apex"][i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
+            print(output)
+            sorted_output += f"{output}\n"
+            time.sleep(1)
+            i += 1
+    except subprocess.CalledProcessError as e:
+        print(f'Command {commands["apex"]} failed with error: {e.stderr}')
     except subprocess.TimeoutExpired:
-        process.kill()
-        return domain, "", f"Command timed out for domain {domain}"
-    except Exception as e:
-        return domain, "", str(e)
-
-# subdomain enum
-def passive_subenum(url, d_name, output_dir):
-    domain_regex = re.compile(r'^(?!-)([A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,}(?::\d+)?$')
-
-    def is_valid_subdomain(subdomain):
-        # You can customize this function to determine whether a line represents a valid subdomain
-        # For example, you can use regex or other rules to match valid subdomains
-        # Here, we'll consider any non-empty line as a valid subdomain
-        return bool(subdomain)
-
-    data_results = []
-
-    domains_file = Path(output_dir) / f"{d_name}.txt"  
-    pass_sub_file = Path(output_dir) / f"{d_name}_subdomains.txt"
-    waymore_path = Path('src') / 'waymore' / f"waymore.py"
-
-    # Check if the domains file exists (for apex domain flag)
-    if domains_file.exists():
-        with open(domains_file, 'r') as file:
-            domains = [line.strip() for line in file if domain_regex.match(line.strip())]
-    else:
-        domains = [url] if domain_regex.match(url) else []
-
-    for domain in domains:
-
-        # subfinder
-        try:
-            print(f"Running subfinder for {domain}...")
-            subfinder_cmd = ["subfinder", "-d", domain, "-v"]
-            subfinder_output = subprocess.check_output(subfinder_cmd, stderr=subprocess.STDOUT, text=True)
-            
-            # Filter out lines that do not represent subdomains
-            subdomains = [line.strip() for line in subfinder_output.splitlines() if is_valid_subdomain(line.strip())]
-            
-            for subdomain in subdomains:
-                if domain_regex.match(subdomain):
-                    data_results.append(subdomain)
-
-        except subprocess.CalledProcessError as e:
-            print(f"Error running subfinder for {domain}: {e.output}")
+        print(f'Command timed out')
     
-        ############# Gotta fix this section
-        # # amass
-        # try:
-        #     print("running amass")
-        #     amass_cmd = ["amass", "enum", "-d", domain]
-        #     amass_output = subprocess.check_output(amass_cmd, stderr=subprocess.STDOUT, text=True)
-        #     print(amass_output)
-            
-        #     amass_subdomains = [line.strip() for line in amass_output.splitlines() if is_valid_subdomain(line.strip())]
-            
-        #     for amass_subdomain in amass_subdomains:
-        #          if domain_regex.match(amass_subdomains):
-        #             data_results.append(amass_subdomains)
-
-        # except subprocess.CalledProcessError as e:
-        #     print(f"Error running amass for {domain}: {e.output}")
-
-        # # waymore
-        # try:
-        #     print("running waymore")
-        #     waymore_cmd = ["python3", waymore_path, "-i", url]
-        #     waymore_output = subprocess.check_output(amass_cmd, stderr=subprocess.STDOUT, text=True)
-            
-        #     waymore_subdomains = [line.strip() for line in waymore_output.splitlines() if is_valid_subdomain(line.strip())]
-            
-        #     for waymore_subdomain in waymore_subdomains:
-        #          if domain_regex.match(waymore_subdomains):
-        #             data_results.append(waymore_subdomains)
-
-        # except subprocess.CalledProcessError as e:
-        #     print(f"Error running waymore for {domain}: {e.output}")
-
-        print(f"{data_results}")
-
-        with open(pass_sub_file, "w+") as file:
-            for result in data_results:
-                file.write(f"{result}\n")
-            file.close()
-
-    return data_results
-
-# This block is to clean results from httpx since it adds special chars
-def clean_ansi_sequences(input_string):
-    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-    return ansi_escape.sub('', input_string)
-
-# httpx running 
-def tech_used(d_name, output_dir):
-    tech_data = []
-    subdomain_file = Path(output_dir) / f"{d_name}_subdomains.txt"
-    tech_file = Path(output_dir) / f"{d_name}_tech_used.txt"
-
-    if subdomain_file.exists():
-        with open(subdomain_file, 'r') as file:
-            subdomains = [line.strip() for line in file.readlines()]
-    else:
-        print(f"Subdomain file {subdomain_file} not found.")
-        return []
-
-    for subdomain in subdomains:
-        try:
-            # Adjust the command if necessary to match your requirements
-            command = ["httpx", "-sc", "-td", "-ip", "-method", "-title", "-cl", "-server", "-l", subdomain_file]
-            # Execute the command for each subdomain
-            httpx_output = subprocess.check_output(command, stderr=subprocess.STDOUT, text=True)
-            output_cleaned = clean_ansi_sequences(httpx_output)
-
-            # Parse the cleaned output; adjust this part according to your actual output format
-            parts = re.findall(r'\[([^]]+)]', output_cleaned)
-            # Ensure the parts list has exactly 8 elements (or however many you expect) to match your columns
-            standardized_parts = parts[:8]  # Adjust slicing as needed to fit your expected number of columns
-            if len(standardized_parts) < 8:
-                # Fill missing values to ensure each row has the correct number of elements
-                standardized_parts += [' '] * (8 - len(standardized_parts))
-            tech_data.append([subdomain] + standardized_parts)
-        except subprocess.CalledProcessError as e:
-            print(f"Error running httpx for {subdomain}: {e}")
-            tech_data.append([subdomain] + ['Error'] + [' '] * 7)  # Adjust based on expected column count
-        except Exception as e:
-            print(f"Unexpected error for {subdomain}: {e}")
-            tech_data.append([subdomain] + ['Unexpected Error'] + [' '] * 7)  # Adjust accordingly
-
-    with open(tech_file, "w") as file:
-        for result in tech_data:
-            file.write(f"{','.join(result)}\n")  # Using comma as a separator for clarity
-
-    return tech_data
-
-
-# use naabu for quick port scan
-def port_scan(d_name, output_dir):
-    naabu_data = []
-    subdomain_file = Path(output_dir) / f"{d_name}_subdomains.txt"
-    naabu_file = Path(output_dir) / f"{d_name}_port_scan.txt"
-
-    if subdomain_file.exists():
-        with open(subdomain_file, 'r') as file:
-            subdomains = [line.strip() for line in file.readlines()]
-    else:
-        print(f"Subdomain file {subdomain_file} not found.")
-        return []
+    # only extract domains, we can use regex for this
+    domain_pattern = re.compile(r'\b[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+    domains = set(domain_pattern.findall(sorted_output))
     
-    for subdomain in subdomains:
-        domain_ports = {}  # Temporary dictionary to hold ports for each domain
-        try:
-            command = ["naabu", "-list", subdomain_file]  # Adjusted to scan individual subdomain
-            naabu_output = subprocess.check_output(command, stderr=subprocess.STDOUT, text=True).strip()
-            print(naabu_output)
-            lines = naabu_output.split('\n')
-            for line in lines:
-                if re.match(r'^[^\s]+:\d+$', line):  # Matches lines like "domain.com:80"
-                    domain, port = line.split(':')
-                    if domain not in domain_ports:
-                        domain_ports[domain] = []
-                    domain_ports[domain].append(port)
-            # Convert domain and ports to the desired string format and add to the results list
-            for domain, ports in domain_ports.items():
-                naabu_data.append(f"{domain}:{','.join(ports)}")
-        except subprocess.CalledProcessError as e:
-            print(f"Naabu error on {subdomain}: {e.output}")
-        except Exception as e:
-            print(f"Unexpected error on {subdomain}: {e}")
-
-    # Write the results to a file
-    with open(naabu_file, 'w') as file:
-        for entry in naabu_data:
-            file.write(f"{entry}\n")
-
-    return naabu_data
+    with open(apex, 'w+') as f:
+        for domain in sorted(domains):
+            f.write(f"{domain}\n")
 
 
-def main(): 
-    parser = argparse.ArgumentParser(description="Bug bounty tool")
-    parser.add_argument("--domain", "-d", required=True, help="Enter the domain name for the target")
-    parser.add_argument("--subdomains", "-s", action='store_true', help="enumerate subdomains only (excludes everything else)")
-    parser.add_argument("--apex", "-ax", action='store_true', help="Grab apex domains only")
-    parser.add_argument("--tech-detection", "-td", action='store_true', help="Only run subdomains enumeration, and tech details")
-    parser.add_argument("--port", "-p", action='store_true', help="basic port scan on subdomains")
-    parser.add_argument("--all", "-a", action='store_true', help="Run all checks default if only -d is selected with nothing else.")
-
-    args = parser.parse_args()
-
-    url = args.domain
-    sub = args.subdomains
-    apex = args.apex
-    tech = args.tech_detection
-    port = args.port
-
-    all_ = args.all #-- use _ to avoid conflict with the all var
-
+# this is to run all of the commands above (-a or --all flags
+def run_commands(commands):
     try:
-        current_os = platform.system()
-        if not go_packages.is_go_installed():
-            print(f"Go is not detected. Attempting installation for {current_os}...")
-            current_os = platform.system()
-            if current_os == "Windows":
-                go_packages.install_go_windows()
-            elif current_os == "Linux":
-                go_packages.install_go_linux()
-            elif current_os == "Darwin":  # macOS is recognized as 'Darwin'
-                go_packages.install_go_mac()
-            else:
-                print("Unsupported operating system.")
-                return  # Exit the script if the OS is not supported
+        # iterate through the commands and run each of them
+        for i in range(len(commands)):
 
-        print("Setting up Go environment and installing packages")
-        go_packages.set_go_path()
-        go_packages.install_go_packages()
+            # logic here can be if _output then subprocess to output, else then just run
+            output = subprocess.check_output(commands[i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
+            print(output)
+            time.sleep(1)
+            
+####################################
 
-        # nmap install check
-        if not nmap_install.is_nmap_installed():
-            print("Nmap is not installed. Installing...")
-            if sys.platform.startswith("linux"):
-                nmap_install.install_nmap_linux()
-            elif sys.platform.startswith("darwin"):
-                nmap_install.install_nmap_macos()
-            elif sys.platform.startswith("win"):
-                nmap_install.install_nmap_windows()
-            else:
-                print("Unsupported operating system.")
-                sys.exit(1)
+            i += 1
+    except subprocess.CalledProcessError as e:
+        print(f'Command {commands} failed with error: {e.stderr}')
+    except subprocess.TimeoutExpired:
+        print(f'Command timed out')
+
+
+
+# grab ASNs for given domain (part of the commands, technically)
+def asn_grab():
+
+    response = requests.get (f"https://api.bgpview.io/search?query_term={_url}", headers=headers) # randomize user agents
+    if response.status_code == 200:
+        data = response.json()
+
+        if 'data' in data and 'ipv4_prefixes' in data['data']:
+            for prefix in data['data']['ipv4_prefixes']:
+                print(f"{prefix['ip']}, {prefix['name']}")
+        
         else:
-            print("Nmap is already installed.")
-
-        print("Please ensure Nmap is added to your PATH if it's not already configured.")
-
-    except Exception as e:
-        print(e)
+            print("no ASNs found")
+    
+    else:
+        print(f"failed to fetch asn data: {response.status_code}")
 
 
-    d_name = url.split(".")[0]
-    output_dir = Path("output") / d_name
-    output_dir.mkdir(parents=True, exist_ok=True)
-    sub_file_output = Path(output_dir) / f"{d_name}_subdomains.txt"
-
-
-    if all_:
-        try:
-
-            print("Processing domain relations")
-            domain_relations.process_domain(url)
-
-            print("Running apex domains")
-            apex_domains_data = apex_domains(url, d_name, output_dir)
-
-            print("Running ASN grab")
-            asn_grab_data = asn_grab(url, d_name, output_dir)
-
-            if not waymore_install.check_waymore():
-                waymore_install.install_waymore()
-            print("Running passive subdomain enumeration")
-            subdomain_data = passive_subenum(url, d_name, output_dir)
-
-            print("Running Tech Detection with HTTPX...")
-            tech_used_data = tech_used(d_name, output_dir)
-
-
-            print("Writing and organizing results to Excel")
-            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
-            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
-
-                # Create DataFrame for each data type
-                df_apex_domains = pd.DataFrame(apex_domains_data, columns=['Apex Domain'])
-                df_asn_grab = pd.DataFrame(asn_grab_data, columns=['IP Range', 'Organization'])
-                df_subdomains = pd.DataFrame(subdomain_data, columns=['Subdomains'])
-                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name', ''])
-
-                # Write to Excel
-                df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
-                df_asn_grab.to_excel(writer, sheet_name='ASN_Findings')
-                df_subdomains.to_excel(writer, sheet_name='Subdomains')
-                df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
-
-
-        except Exception as e:
-            print(e)
+# handle the existing files (prompt user) and do some stuff:
+def handle_existing_files():
+    existing_files = [file for file in all_output if file.exists()]
+    if not existing_files:
+        pass
 
     else:
-        if sub:
-            if not waymore_install.check_waymore():
-                waymore_install.install_waymore()
-            print("Running passive subdomain enumeration")
-            subdomain_data = passive_subenum(url, d_name, output_dir)
+        prompt = input("\n\nwould you like to overwrite existing data? (yes or no):\t")
+        prompt = prompt.lower()
 
-            print("Writing and organizing results to Excel")
-            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
-            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+        if prompt == 'yes':
+            for i in range(len(all_output)):
+                file_path = Path(all_output[i]) # this needs to iterate
 
-                # Create DataFrame for each data type
-                df_subdomains = pd.DataFrame(subdomain_data, columns=['Subdomains'])
+                # Delete the file is this option is selected.
+                if platform.system() == 'Windows':
+                    subprocess.run(['del', file_path], check=True, shell=True)
+                    i += 1
+                    continue
+
+                else:
+                    subprocess.run(['rm', file_path], check=True)
+                    i += 1
+                    continue
+
+            print("files have been removed and will be recreated")
+            time.sleep(5)
+
+            return
+
+        elif prompt == 'no':
+            print("files will be appended to existing results (This may take up more disc space and lead to duplicates)")
+            time.sleep(5)
+            return
+        
+        else:
+            print("invalid option selected")
+            handle_existing_files() # restart this function if invalid response
+
+
+###### ---------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# handle_existing_files()
+# run_apex()
+# asn_grab()
+# run_commands()
+
+def main():
+
+    # Set arg variables
+    if _all:
+
+        print("\n\n\nall flags selected, script will run all commands and output results in all available formats...\n\nPlease allow adequate time for completion...")
+        time.sleep(5)
+
+        # remove existing files if yes
+        handle_existing_files()
+
+        # asn grab
+        asn_grab()
+
+        # pull from the commands above
+        run_apex()
+        run_commands(commands["subdomains_apex_output"])
+        run_commands(commands["tech_detection_output"])
+        run_commands(commands["subdomain_takeover_output"])
+        run_commands(commands["portscan_output"])
+        run_commands(commands["vulnscan_output"])
+        run_commands(commands["spider_output"])
+    
+        return
+
+
+    if not _all:
+         
+        if not _all and not _flags and not _outputs:
+ 
+            print("\n\n\nno flags selected, script will run all commands and output results by default...\n\nPlease allow adequate time for completion...")
+            time.sleep(5)
+
+            # remove existing files if yes
+            handle_existing_files()
+
+            # asn grab
+            asn_grab()
+
+            # pull from the commands above
+            run_apex()
+            run_commands(commands["subdomains_apex_output"])
+            run_commands(commands["tech_detection_output"])
+            run_commands(commands["subdomain_takeover_output"])
+            run_commands(commands["portscan_output"])
+            run_commands(commands["vulnscan_output"])
+            run_commands(commands["spider_output"])
+
+            return
+
+
+
+        if _asn:
+            asn_grab()
+            return
+
+
+
+
+
+        if not _subdomains and not _apex:
+            if not any([_outputs]):
+                if _ports:
+                    run_commands(commands["portscan_url_only"])
+                    
+                    return
                 
-                print(f"processed data: processed_data") # -- for testing...
+                if _tech_detection:
+                    run_commands(commands["tech_detection_url_only"])
+                    return
 
-                # Write to Excel
-                df_subdomains.to_excel(writer, sheet_name='Subdomains')
+                if _vulnscan:
+                    run_commands(commands["vulnscan_url_only"])
+                    return
+
+                if _spider:
+                    run_commands(commands["spider_url_only"])
+                    return
+            
+            if _output:
+                # remove existing files if yes
+                handle_existing_files()
+                if _ports:
+                    run_commands(commands["portscan_url_only_output"])
+                    
+                    return
+                
+                if _tech_detection:
+                    run_commands(commands["tech_detection_url_only_output"])
+                    return
+
+                if _vulnscan:
+                    run_commands(commands["vulnscan_url_only_output"])
+                    return
+
+                if _spider:
+                    run_commands(commands["spider_url_only_output"])
+                    return
+
+
+
+
+
+        if not _apex:
+            if not any([_outputs]):
+
+                if _subdomains:
+
+                    run_commands(commands["subdomain_no_apex"])
+                    return
+
+                if _ports:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex"])
+
+                    run_commands(commands["portscan"])
+                    return
+                
+                if _tech_detection:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex"])
+                    
+                    run_commands(commands["tech_detection"])
+                    return
+                
+                if _spider:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex"])
+                    
+                    run_commands(commands["spider"])
+                    return
+                
+                if _vulnscan:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex"])
+                    
+                    run_commands(commands["vulnscan"])
+                    return
+            
+            if _output:
+                # remove existing files if yes
+                handle_existing_files()
+                if _subdomains:
+
+                    run_commands(commands["subdomain_no_apex_output"])
+                    return
+
+                if _ports:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+
+                    run_commands(commands["portscan_output"])
+                    return
+                
+                if _tech_detection:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+                    
+                    run_commands(commands["tech_detection_output"])
+                    return
+                
+                if _spider:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+                    
+                    run_commands(commands["spider_output"])
+                    return
+                
+                if _vulnscan:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_no_apex_output"])
+                    
+                    run_commands(commands["vulnscan_output"])
+                    return
+
         
-        if apex:
-            print("Running apex domains")
-            apex_domains_data = apex_domains(url, d_name, output_dir)
 
-            print("Writing and organizing results to Excel")
-            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
-            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
 
-                # Create DataFrame for each data type
-                df_apex_domains = pd.DataFrame(apex_domains_data, columns=['Apex Domain'])
+        if _apex:
+            if not any([_outputs]):
+                run_apex()
+                
+                if _subdomains:
 
-                # Write to Excel
-                df_apex_domains.to_excel(writer, sheet_name='Apex_Domains')
+                    run_commands(commands["subdomains_apex"])
+                    return
+                
+                if _ports:
 
-        if tech:
-            if not os.path.exists(sub_file_output):
-                print("grabbing subdomains for tech detection")
-                passive_subenum(url, d_name, output_dir)
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex"])
+
+                    run_commands(commands["portscan"])
+                    return
+                
+                if _tech_detection:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex"])
+                    
+                    run_commands(commands["tech_detection"])
+                    return
+                
+                if _spider:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex"])
+                    
+                    run_commands(commands["spider"])
+                    return
+                
+                if _vulnscan:
+
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex"])
+                    
+                    run_commands(commands["vulnscan"])
+                    return
             
-            print("Running Tech Detection with HTTPX...")
-            tech_used_data = tech_used(d_name, output_dir)
+            if _output:
+                # remove existing files if yes
+                handle_existing_files()
+                run_apex()
+                
+                if _subdomains:
 
-            print("Writing and organizing results to Excel")
-            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
-            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+                    run_commands(commands["subdomains_apex_output"])
+                    return
+                
+                if _ports:
 
-                # Create DataFrame for each data type
-                df_tech_used = pd.DataFrame(tech_used_data, columns=['Subdomain', 'NULL', 'Status Code', 'HTTP Method', 'Content-Size', 'Title', 'IP Address', 'Tech Detection', 'Server Name'])
-            
-                # Write to Excel
-                df_tech_used.to_excel(writer, sheet_name='Tech_Detection')
-        
-        if port:
-            if not os.path.exists(sub_file_output):
-                print("grabbing subdomains for tech detection")
-                passive_subenum(url, d_name, output_dir)
-            
-            print('running port scan')
-            naabu_data_res = port_scan(d_name, output_dir)
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
 
-            print("Writing and organizing results to Excel")
-            excel_file = Path(output_dir) / f"{d_name}_spreadsheet.xlsx"
-            with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+                    run_commands(commands["portscan_output"])
+                    return
+                
+                if _tech_detection:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+                    
+                    run_commands(commands["tech_detection_output"])
+                    return
+                
+                if _spider:
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+                    
+                    run_commands(commands["spider_output"])
+                    return
+                
+                if _vulnscan:
 
-                # Create DataFrame for each data type
-                df_naabu_data = pd.DataFrame(naabu_data_res, columns=['Subdomain', 'Port'])
-            
-                # Write to Excel
-                df_naabu_data.to_excel(writer, sheet_name='Port_Scan')
+                    if not subdomains.exists():
+                        run_commands(commands["subdomain_apex_output"])
+                    
+                    run_commands(commands["vulnscan_output"])
+                    return
+
+
+
+
+            ################# LEFT OFF HERE
+
+
 
 
 if __name__ == "__main__":
     main()
 
 
+
+
+
+
+
+
+
+#### To Do
+    
+##### I need to add outputs for all and also the xlsx outputs   ---> so far only .txt (-o) is completed
+
+# arg help page
+# readme.md
+# requirements.txt ---> inatall paths include go_requirements.py - include that in main
+# add more tools
+##### add more args
+# optimize
+# grab js, parameters
+# fyi - if you want to specify a subdomain, just save it in an output folder as "output/domain/domain_subdomains.txt"
