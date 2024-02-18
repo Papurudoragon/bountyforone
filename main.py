@@ -14,9 +14,14 @@ sys.path.append('bin/')
 import go_packages
 from pathlib import Path
 import random
+from colorama import Fore
+import pyfiglet
 
 
 
+# python banner text
+banner_text = pyfiglet.figlet_format("BountyforOne")
+author_text = pyfiglet.figlet_format("\nby Papv2\n\nOne base, for all tools.\n\n")
 
 # arguments to add for custom use
 parser = argparse.ArgumentParser(description="Bounty for one - Bug bounty tool")
@@ -105,7 +110,6 @@ headers = {'User-Agent': random.choice(user_agent)}
 
 # set the script timeout
 timeout = 300
-
 
 
 ## Output Section
@@ -237,16 +241,16 @@ commands = {
 
 
     "vulnscan": [
-        f"nuclei {nuclei_flag_all} {live_subs} -t http/"
+        f"nuclei {nuclei_flag_all} {live_subs} -t http/ -v"
     ],
     "vulnscan_url_only": [
-        f"nuclei {nuclei_flag_url} {_url} -t http/"
+        f"nuclei {nuclei_flag_url} {_url} -t http/ -v"
     ],
     "vulnscan_output": [
-         f"nuclei {nuclei_flag_all} {live_subs} -t http/ -o {vulnscan}"
+         f"nuclei {nuclei_flag_all} {live_subs} -t http/ -v -o {vulnscan}"
     ],
     "vulnscan_url_only_output": [
-        f"nuclei {nuclei_flag_url} {_url} -t http/ -o {vulnscan}"
+        f"nuclei {nuclei_flag_url} {_url} -t http/ -v -o {vulnscan}"
     ],
 
 
@@ -304,6 +308,7 @@ def run_commands(commands):
         for i in range(len(commands)):
 
             # logic here can be if _output then subprocess to output, else then just run
+            print("running command(s), please be patient...\n\n")
             output = subprocess.check_output(commands[i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
             print(output)
             time.sleep(1)
@@ -378,7 +383,6 @@ def handle_existing_files():
             else:
 
 
-
                 if _apex:
                     if platform.system() == 'Windows':
                         subprocess.run(['del', apex], check=True, shell=True)
@@ -386,6 +390,8 @@ def handle_existing_files():
 
                     else:
                         subprocess.run(['rm', apex], check=True)
+                    
+                    return
 
     
 
@@ -397,6 +403,8 @@ def handle_existing_files():
 
                     else:
                         subprocess.run(['rm', asn], check=True)
+
+                    return
                     
             
                 
@@ -407,6 +415,8 @@ def handle_existing_files():
 
                     else:
                         subprocess.run(['rm', portscan], check=True)
+
+                    return
 
                 
 
@@ -420,6 +430,8 @@ def handle_existing_files():
                         subprocess.run(['rm', subdomains], check=True)
                         subprocess.run(['rm', live_subs], check=True)
 
+                    return
+
 
 
                 if _spider:
@@ -429,6 +441,8 @@ def handle_existing_files():
 
                     else:
                         subprocess.run(['rm', spider], check=True)
+
+                    return
 
 
 
@@ -440,6 +454,10 @@ def handle_existing_files():
                     else:
                         subprocess.run(['rm', tech], check=True)
 
+                    return
+                
+
+
                 if _vulnscan:
                     if platform.system() == 'Windows':
                         subprocess.run(['del', vulnscan], check=True, shell=True)
@@ -448,8 +466,8 @@ def handle_existing_files():
                     else:
                         subprocess.run(['rm', vulnscan], check=True)
 
-
-                return
+                    
+                    return
 
 
         elif prompt == 'no':
@@ -481,7 +499,7 @@ def output_to_excel():
     # read several files
     
     try:
-        with open(apex, 'r') as apex_file:
+        with open(apex, 'r', encoding='utf-8') as apex_file:
             apex_content = apex_file.read().splitlines()
             for line in apex_content:
                 apex_xlsx.append(f"{line}\n")
@@ -489,7 +507,7 @@ def output_to_excel():
         pass
 
     try:
-        with open(asn, 'r') as asn_file:
+        with open(asn, 'r', encoding='utf-8') as asn_file:
             asn_content = asn_file.read().splitlines()
             for line in asn_content:
                 asn_xlsx.append(f"{line}\n")
@@ -497,7 +515,7 @@ def output_to_excel():
         pass
 
     try:
-        with open(subdomains, 'r') as subdomains_file:
+        with open(subdomains, 'r', encoding='utf-8') as subdomains_file:
             sub_content = subdomains_file.read().splitlines()
             for line in sub_content:
                 subdomain_xlsx.append(f"{line}\n")
@@ -506,7 +524,7 @@ def output_to_excel():
 
     
     try:
-        with open(live_subs, 'r') as live_file:
+        with open(live_subs, 'r', encoding='utf-8') as live_file:
             live_content = live_file.read().splitlines()
             for line in live_content:
                 live_subdomains_xlsx.append(f"{line}\n")
@@ -516,7 +534,7 @@ def output_to_excel():
 
     # httpx results need a but more cleaning and formatting
     try:
-        with open(tech, 'r') as tech_file:
+        with open(tech, 'r', encoding='utf-8') as tech_file:
             for line in tech_file:
                 clean_pattern = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
                 cleaned_line = re.sub(clean_pattern, '', line)
@@ -527,9 +545,9 @@ def output_to_excel():
         pass
 
 
-    # naabu needs a bit for cleaning and formatting
+    # naabu needs a bit of cleaning and formatting
     try:
-        with open(portscan, 'r') as port_file:
+        with open(portscan, 'r', encoding='utf-8') as port_file:
                 for line in port_file:
                     host, port = line.strip().split(':')
                     port_scan_xlsx.append((host, port))
@@ -537,17 +555,29 @@ def output_to_excel():
         pass
 
 
+    # nuclei needs a bit of formatting
     try:
-        with open(vulnscan, 'r') as vuln_file:
-            vuln_content = vuln_file.read().splitlines()
-            for line in vuln_content:
-                vuln_scan_xlsx.append(f"{line}\n")
+        with open(vulnscan, 'r', encoding='utf-8') as vuln_file:
+            pattern = re.compile(r'\[(.*?)\]')
+            for line in vuln_file:
+                parts = pattern.findall(line)
+                vuln_check_, method_, severity_ = parts[:3]
+                if len(parts) > 3:
+                    host_ = ", ".join(parts[3:])
+                else:
+                    host_ = ""     
+                if len(parts) > 4:
+                    findings_ = parts[:5]
+                else:
+                    findings_ = ""
+
+                vuln_scan_xlsx.append([vuln_check_, method_, severity_, host_, findings_])
     except FileNotFoundError:
         pass
 
 
     try:
-        with open(spider, 'r') as spider_file:
+        with open(spider, 'r', encoding='utf-8') as spider_file:
             spider_content = spider_file.read().splitlines()
             for line in spider_content:
                 spider_xlsx.append(f"{line}\n")
@@ -581,14 +611,28 @@ def output_to_excel():
 
 
 
+
+def banner():
+
+    # banner shoes usage if implemented without flags
+    print(f"{Fore.GREEN}{banner_text}")
+    print(F"{Fore.YELLOW}{author_text}")
+    print(f"{Fore.CYAN}usage: python3 bountyforone.py -h/--help")
+    time.sleep(3)
+
+    
+    return
+
+
+
+
 # handle_existing_files()
 # run_apex()
 # asn_grab()
 # run_commands()
 
-
-
 def main():
+    banner()
 
     # Set arg variables
     if _all:
