@@ -411,40 +411,42 @@ def run_commands(command):
 
 
 # grab ASNs for given domain (part of the commands, technically)
-def asn_grab():
+def asn_grab(url):
 
     # check for existing asn file first:
     if asn.exists():
-        in_ = input(f"{asn} already exists, would you like to re-run the command and append (Y/N)?").lower()
-        if in_ == "n":
-            pass
-        elif in_ == "y":
-
-            response = requests.get (f"https://api.bgpview.io/search?query_term={domain_}", headers=headers) # randomize user agents
-            if response.status_code == 200:
-                data = response.json()
-
-                # if not any([_outputs]):
-                #     if 'data' in data and 'ipv4_prefixes' in data['data']:
-                #         for prefix in data['data']['ipv4_prefixes']:
-                #             print(f"{prefix['ip']}, {prefix['name']}")
-                
-                # if _output:
-                with open(asn, "w+") as file1:
-                    if 'data' in data and 'ipv4_prefixes' in data['data']:
-                        for prefix in data['data']['ipv4_prefixes']:
-                            file1.write(f"{prefix['ip']}, {prefix['name']}\n")
-                            print(f"{prefix['ip']}, {prefix['name']}")
-        
-                # else:
-                #     print("no ASNs found")
-            
+        while True:
+            in_ = input(f"{asn} already exists, would you like to re-run the command and append (Y/N)?").lower()
+            if in_ == "n":
+                return
+            elif in_ == "y":
+                break
             else:
-                print(f"failed to fetch asn data: {response.status_code}")
+                print("invalid selection (Y or N)")
+
+    response = requests.get (f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
+    if response.status_code == 200:
+        data = response.json()
+
+        # if not any([_outputs]):
+        #     if 'data' in data and 'ipv4_prefixes' in data['data']:
+        #         for prefix in data['data']['ipv4_prefixes']:
+        #             print(f"{prefix['ip']}, {prefix['name']}")
         
-        else:
-            print("invalid selection")
-            asn_grab()
+        # if _output:
+        with open(asn, "w+") as file1:
+            if 'data' in data and 'ipv4_prefixes' in data['data']:
+                for prefix in data['data']['ipv4_prefixes']:
+                    file1.write(f"{prefix['ip']}, {prefix['name']}\n")
+                    print(f"{prefix['ip']}, {prefix['name']}")
+
+        # else:
+        #     print("no ASNs found")
+    
+    else:
+        print(f"failed to fetch asn data: {response.status_code}")
+        
+
 
 
 # handle the existing files (prompt user) and do some stuff: #######
@@ -613,7 +615,8 @@ def output_to_excel():
         with open(asn, 'r', encoding='utf-8') as asn_file:
             asn_content = asn_file.read().splitlines()
             for line in asn_content:
-                asn_xlsx.append(f"{line}\n")
+                ip, domain = line.strip().split(',')
+                asn_xlsx.append((ip, domain))
     except FileNotFoundError:
         pass
 
@@ -771,7 +774,7 @@ def banner():
 def run_checks():
     
     if _asn:
-        asn_grab()
+        asn_grab(domain_)
 
     if _apex and _subdomains:
         run_apex()
@@ -838,7 +841,7 @@ def run_checks():
 
 # This is to handle all flags or no flag behavior, no flags == all and all == all
 def run_checks_for_all():
-    asn_grab()
+    asn_grab(domain_)
     run_apex()
     run_commands(commands["subdomains_apex_output"])
     run_commands(commands["subdomain_takeover_output"])
@@ -903,6 +906,7 @@ if __name__ == "__main__":
 
 # change arg logic - run single port unless a list is specified - DONE
 # arg help page
+# Migrate from subprocess to custom libraries
 # create requirements and package up - DONE
 # change the way apex and asn handle -o (give it a non -o output)
 # readme.md
