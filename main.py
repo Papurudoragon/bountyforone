@@ -14,7 +14,7 @@ sys.path.append('bin/')
 import go_packages
 from pathlib import Path
 import random
-from colorama import Fore, Style
+from colorama import Fore
 import pyfiglet
 
 
@@ -24,19 +24,24 @@ banner_text = pyfiglet.figlet_format("BountyforOne")
 author_text = "by Papv2"
 desc_text = "One base, for all tools."
 
-# arguments to add for custom use
+# arguments to add for url or file use
 parser = argparse.ArgumentParser(description="Bounty for one - Bug bounty tool")
-parser.add_argument("-u", "--url", required=True, help="Enter the domain name for the target (e.g example.com)")
+parser.add_argument("-u", "--url", help="Enter the domain name for a single target (e.g example.com)")
+parser.add_argument("-l", "--list", help="runs commands on a list of targets, (this uses output of -s so run that if you dont have that output already)")
+
+# args to run scripts
 parser.add_argument("-s", "--subdomains", action='store_true', help="first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains (use flag by itself to gather only subdomains)")
 parser.add_argument("-ax", "--apex", action='store_true', help="Grab apex domains (include this option to also run options against discovered apex domains)")
+parser.add_argument("-st", "--subdomain-takeover", action='store_true', help="provide a list of subdomains for subdomain takeover checks")
 parser.add_argument("-td", "--tech-detection", action='store_true', help="run technnology detection against a single url (or discovere and run against apex and/or subdomains if -s is selected)")
 parser.add_argument("-p", "--port", action='store_true', help="basic port scan on subdomains, apex, or url")
 parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln scan on subdomains, apex, or url")
 parser.add_argument("-sp", "--spider", action='store_true', help="basic spider on subdomains, apex, or url")
 parser.add_argument("-as", "--asn",  action='store_true', help="grab asn information",)
+
+# output args
 parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
 parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format as well as txt")
-parser.add_argument("-oa", "--output-all",  action='store_true', help="output results in all formats (txt, xlsx)")
 
 # flag for all checks
 parser.add_argument("-a", "--all", action='store_true', help="Run all checks default if only -u is selected with nothing else.")
@@ -44,8 +49,10 @@ parser.add_argument("-a", "--all", action='store_true', help="Run all checks def
 args = parser.parse_args()
 
 _url = args.url
+_list = args.list
 _subdomains = args.subdomains
 _apex = args.apex
+_subtakeover = args.subdomain_takeover
 _tech_detection = args.tech_detection
 _ports = args.port
 _vulnscan = args.vulnscan
@@ -53,18 +60,47 @@ _spider = args.spider
 _asn = args.asn
 _output = args.output
 _outputexcel = args.output_excel
-_outputall = args.output_all
 
 # I want all to be default if nothing selected
 _all = args.all
 
-_outputs = any([_output, _outputexcel, _outputall])
+_outputs = any([_output, _outputexcel])
+# outputs should be always true for now
+_outputs = True
+
+# flags for any, and all_flags for all flags or no flags
 _flags = any([_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn])
+_all_flags = (_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn)
+
+# selected args vars for later mapping and parsing with file handling
+selected_args = []
+if _subdomains: selected_args.append('subdomains')
+if _apex: selected_args.append('apex')
+if _tech_detection: selected_args.append('tech_detection')
+if _ports: selected_args.append('ports')
+if _vulnscan: selected_args.append('vulnscan')
+if _spider: selected_args.append('spider')
+if _asn: selected_args.append('asn')
+
+# string format
+selected_args_str = ", ".join(selected_args)
 
 
+## Global vars for url and list domain without the .com
+if _url:
+    domain_name = _url.split(".")[0]
+if _list:
+    domain_name = _list.split(".")[0]
 
-## Global vars
-domain_name = _url.split(".")[0]
+# global vars for url and list domains
+    
+if _url:
+    domain_ = _url
+if _list:
+    domain_ = _list
+
+selected_args = [] # this is for existing args
+existing_files = [] # this is for existing files
 base_dir = Path('output') / domain_name
 max_memory = 0 # we gotta limit memory usage to handle processing with less RAM
 curr_memory = 0 # we gotta limit memory usage to handle processing with less RAM
@@ -174,65 +210,38 @@ gospider_flag_url = "-s"
 
 # commands:
 commands = {
-    "apex": [
-        f"python3 src/check_mdi-main/check_mdi.py -d {_url}"
-    ],
+
     "apex_output": [
-        f"python3 src/check_mdi-main/check_mdi.py -d {_url} >> {apex}"
+        f"python3 src/check_mdi-main/check_mdi.py -d {domain_} >> {apex}"
     ],
 
 
-    "subdomains_apex": [
-        f"subfinder {subfinder_flag_all} {apex} -v",
-        # f"amass enum -d {apex}",
-        f"httpx {httpx_flag_all} {subdomains}"
-    ],
-    "subdomains_no_apex": [
-        f"subfinder {subfinder_flag_url} {_url} -v",
-        # f"amass enum -d {_url}",
-        f"httpx {httpx_flag_all} {subdomains}"
-    ],
     "subdomains_apex_output": [
         f"subfinder {subfinder_flag_all} {apex} -v -o {subdomains} ",
         # f"amass enum -d {apex}",
         f"httpx {httpx_flag_all} {subdomains} -v -o {live_subs}"
     ],
     "subdomains_no_apex_output": [
-        f"subfinder {subfinder_flag_url} {_url} -v -o {subdomains}",
+        f"subfinder {subfinder_flag_url} {domain_} -v -o {subdomains}",
         # f"amass enum -d {_url}",
         f"httpx {httpx_flag_all} {subdomains} -o {live_subs}"
     ],
 
 
-    "tech_detection": [
-        f"httpx -sc -td -ip -method -cl {httpx_flag_all} {subdomains}"
-    ],
-    "tech_detection_url_only": [
-        f"httpx -sc -td -ip -method -cl {httpx_flag_url} {_url}"
-    ],
     "tech_detection_output": [
         f"httpx -sc -td -ip -method -cl {httpx_flag_all} {subdomains} -o {tech}"
     ],
     "tech_detection_url_only_output": [
-        f"httpx -sc -td -ip -method -cl {httpx_flag_url} {_url} -o {tech}"
+        f"httpx -sc -td -ip -method -cl {httpx_flag_url} {domain_} -o {tech}"
     ],
 
 
 
-    "subdomain_takeover": [
-        f"subzy run --targets {live_subs}"
-    ],
     "subdomain_takeover_output": [
         f"subzy run --targets {live_subs} >> {sub_takeover}"
     ],
 
 
-    "portscan": [
-        f"naabu {naabu_flag_all} {subdomains} -v -p {naabu_ports}"
-    ],
-    "portscan_url_only": [
-        f"naabu {naabu_flag_url} {_url} -v -p {naabu_ports}"
-    ],
     "portscan_output": [
         f"naabu {naabu_flag_all} {subdomains} -v -p {naabu_ports} -o {portscan}"
     ],
@@ -241,31 +250,19 @@ commands = {
     ],
 
 
-    "vulnscan": [
-        f"nuclei {nuclei_flag_all} {live_subs} -t http/ -v"
-    ],
-    "vulnscan_url_only": [
-        f"nuclei {nuclei_flag_url} {_url} -t http/ -v"
-    ],
     "vulnscan_output": [
          f"nuclei {nuclei_flag_all} {live_subs} -t http/ -v -o {vulnscan}"
     ],
     "vulnscan_url_only_output": [
-        f"nuclei {nuclei_flag_url} {_url} -t http/ -v -o {vulnscan}"
+        f"nuclei {nuclei_flag_url} {domain_} -t http/ -v -o {vulnscan}"
     ],
 
 
-    "spider": [
-        f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v"
-    ],
-    "spider_url_only":[
-        f"gospider {gospider_flag_url} https://{_url} -t 2 --js --sitemap --robots -v"
-    ],
     "spider_output": [
         f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v >> {spider}"
     ],
     "spider_url_only_output":[
-        f"gospider {gospider_flag_url} https://{_url} -t 2 --js --sitemap --robots -v >> {spider}"
+        f"gospider {gospider_flag_url} https://{domain_} -t 2 --js --sitemap --robots -v >> {spider}"
     ]
 }
 
@@ -282,14 +279,14 @@ def run_apex():
     sorted_output = ""
     try:
         # iterate through the commands and run each of them
-        for i in range(len(commands["apex"])):
-            output = subprocess.check_output(commands["apex"][i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
+        for i in range(len(commands["apex_output"])):
+            output = subprocess.check_output(commands["apex_output"][i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
             print(output)
             sorted_output += f"{output}\n"
             time.sleep(1)
             i += 1
     except subprocess.CalledProcessError as e:
-        print(f'Command {commands["apex"]} failed with error: {e.stderr}')
+        print(f'Command {commands["apex_output"]} failed with error: {e.stderr}')
     except subprocess.TimeoutExpired:
         print(f'Command timed out')
     
@@ -308,94 +305,103 @@ def run_commands(command):
         # iterate through the commands and run each of them
         for i in range(len(command)):
 
-            if not any([_outputs]):
+            # if not any([_outputs]):
 
-                # logic here can be if _output then subprocess to output, else then just run
-                print("running command(s), please be patient...\n\n")
-                output = subprocess.check_output(
-                    command[i], 
-                    stderr=subprocess.STDOUT, 
-                    shell=True, 
-                    timeout=timeout,
-                    encoding='utf-8'
-                    )
+            #     # logic here can be if _output then subprocess to output, else then just run
+            #     print("running command(s), please be patient...\n\n")
+            #     output = subprocess.check_output(
+            #         command[i], 
+            #         stderr=subprocess.STDOUT, 
+            #         shell=True, 
+            #         timeout=timeout,
+            #         encoding='utf-8'
+            #         )
                 
-                print(output)
-                time.sleep(1)
-                i += 1
+            #     print(output)
+            #     time.sleep(1)
+            #     i += 1
 
-            else:
-                if any([_outputs]):
+            # else:
+                # if any([_outputs]):
 
-                    # its pointless to keep running through subdomains if the file is already created
-                    if (_subdomains and command == commands["subdomains_apex_output"]) or (_subdomains and command == commands["subdomains_no_apex_output"]):
-                        if subdomains.exists():
-                            in_ = input(f"both {subdomains} and {live_subs} already exists, would you like to re-run the command and append (Y/N)?").lower()
-                            if in_ == "y":
-                                continue
-                            elif in_ == "n":
-                                # skip over live subs check
-                                i += 2
-                                continue
-                                
-                            
-                    if (_ports and command == commands["portscan_output"]) or (_ports and command == commands["portscan_url_only_output"]):
-                        if portscan.exists():
-                            in_ = input(f"{portscan} already exists, would you like to re-run the command and append (Y/N)?").lower()
-                            if in_ == "y":
-                                continue
-                            elif in_ == "n":
-                                # skip over live subs check
-                                i += 1
-                                continue
-
-                    
-                    if (_spider and command == commands["spider_url_only_output"]) or (_spider and command == commands["spider_output"]):
-                        if spider.exists():
-                            in_ = input(f"{spider} already exists, would you like to re-run the command and append (Y/N)?").lower()
-                            if in_ == "y":
-                                continue
-                            elif in_ == "n":
-                                # skip over live subs check
-                                i += 1
-                                continue
-
-                    
-                    if (_tech_detection and command == commands["tech_detection_output"]) and (_tech_detection and command == commands["tech_detection_url_only_output"]):
-                        if tech.exists():
-                            in_ = input(f"{tech} already exists, would you like to re-run the command and append (Y/N)?").lower()
-                            if in_ == "y":
-                                continue
-                            elif in_ == "n":
-                                # skip over live subs check
-                                i += 1
-                                continue
-
+            # its pointless to keep running through subdomains if the file is already created
+            if (command == commands["subdomains_apex_output"]) or (command == commands["subdomains_no_apex_output"]):
+                if subdomains.exists():
+                    in_ = input(f"{subdomains} already exists, would you like to re-run the command and append (Y/N)?").lower()
+                    if in_ == "y":
+                        continue
+                    elif in_ == "n":
+                        # skip over subs check
+                        i += 1
+                        continue
+                
+                if live_subs.exists():
+                    in_ = input(f"{live_subs} already exists, would you like to re-run the command and append (Y/N)?").lower()
+                    if in_ == "y":
+                        continue
+                    elif in_ == "n":
+                        # skip over live subs check
+                        i += 1
+                        continue
                         
-                    if (_vulnscan and command == commands["vulnscan_output"]) and (_vulnscan and command == commands["vulnscan_url_only_output"]):
-                        if vulnscan.exists():
-                            in_ = input(f"{portscan} already exists, would you like to re-run the command and append (Y/N)?").lower()
-                            if in_ == "y":
-                                continue
-                            elif in_ == "n":
-                                # skip over live subs check
-                                i += 1 
-                                continue 
+                    
+            if (command == commands["portscan_output"]) or (command == commands["portscan_url_only_output"]):
+                if portscan.exists():
+                    in_ = input(f"{portscan} already exists, would you like to re-run the command and append (Y/N)?").lower()
+                    if in_ == "y":
+                        continue
+                    elif in_ == "n":
+                        # skip over port check
+                        i += 1
+                        continue
+
+            
+            if (command == commands["spider_url_only_output"]) or (command == commands["spider_output"]):
+                if spider.exists():
+                    in_ = input(f"{spider} already exists, would you like to re-run the command and append (Y/N)?").lower()
+                    if in_ == "y":
+                        continue
+                    elif in_ == "n":
+                        # skip over spider check
+                        i += 1
+                        continue
+
+            
+            if (command == commands["tech_detection_output"]) or (command == commands["tech_detection_url_only_output"]):
+                if tech.exists():
+                    in_ = input(f"{tech} already exists, would you like to re-run the command and append (Y/N)?").lower()
+                    if in_ == "y":
+                        continue
+                    elif in_ == "n":
+                        # skip over tech check
+                        i += 1
+                        continue
+
+                
+            if (command == commands["vulnscan_output"]) or (command == commands["vulnscan_url_only_output"]):
+                if vulnscan.exists():
+                    in_ = input(f"{portscan} already exists, would you like to re-run the command and append (Y/N)?").lower()
+                    if in_ == "y":
+                        continue
+                    elif in_ == "n":
+                        # skip over vuln check
+                        i += 1 
+                        continue 
                 
 
-                # logic here can be if _output then subprocess to output, else then just run
-                print("running command(s), please be patient...\n\n")
-                output = subprocess.check_output(
-                    command[i], 
-                    stderr=subprocess.STDOUT, 
-                    shell=True, 
-                    timeout=timeout,
-                    encoding='utf-8'
-                    )
-                
-                print(output)
-                time.sleep(1)
-                i += 1
+            # logic here can be if _output then subprocess to output, else then just run
+            print("running command(s), please be patient...\n\n")
+            output = subprocess.check_output(
+                command[i], 
+                stderr=subprocess.STDOUT, 
+                shell=True, 
+                timeout=timeout,
+                encoding='utf-8'
+                )
+            
+            print(output)
+            time.sleep(1)
+            i += 1
 
     except subprocess.CalledProcessError as e:
         print(f'Command {command} failed with error: {e.stderr}')
@@ -407,167 +413,180 @@ def run_commands(command):
 # grab ASNs for given domain (part of the commands, technically)
 def asn_grab():
 
-    response = requests.get (f"https://api.bgpview.io/search?query_term={_url}", headers=headers) # randomize user agents
-    if response.status_code == 200:
-        data = response.json()
+    # check for existing asn file first:
+    if asn.exists():
+        in_ = input(f"{asn} already exists, would you like to re-run the command and append (Y/N)?").lower()
+        if in_ == "n":
+            pass
+        elif in_ == "y":
 
-        if not any([_outputall]):
-            if 'data' in data and 'ipv4_prefixes' in data['data']:
-                for prefix in data['data']['ipv4_prefixes']:
-                    print(f"{prefix['ip']}, {prefix['name']}")
+            response = requests.get (f"https://api.bgpview.io/search?query_term={domain_}", headers=headers) # randomize user agents
+            if response.status_code == 200:
+                data = response.json()
+
+                # if not any([_outputs]):
+                #     if 'data' in data and 'ipv4_prefixes' in data['data']:
+                #         for prefix in data['data']['ipv4_prefixes']:
+                #             print(f"{prefix['ip']}, {prefix['name']}")
+                
+                # if _output:
+                with open(asn, "w+") as file1:
+                    if 'data' in data and 'ipv4_prefixes' in data['data']:
+                        for prefix in data['data']['ipv4_prefixes']:
+                            file1.write(f"{prefix['ip']}, {prefix['name']}\n")
+                            print(f"{prefix['ip']}, {prefix['name']}")
         
-        if _output:
-            with open(asn, "w+") as file1:
-                if 'data' in data and 'ipv4_prefixes' in data['data']:
-                    for prefix in data['data']['ipv4_prefixes']:
-                        file1.write(f"{prefix['ip']}, {prefix['name']}\n")
-                        print(f"{prefix['ip']}, {prefix['name']}")
-
+                # else:
+                #     print("no ASNs found")
+            
+            else:
+                print(f"failed to fetch asn data: {response.status_code}")
         
         else:
-            print("no ASNs found")
-    
-    else:
-        print(f"failed to fetch asn data: {response.status_code}")
+            print("invalid selection")
+            asn_grab()
 
 
 # handle the existing files (prompt user) and do some stuff: #######
 def handle_existing_files():
-    existing_files = [file for file in all_output if file.exists()]
+    for file in all_output:
+        if file.exists():
+            existing_files.append(file)
+
     if not existing_files:
         pass
 
     else:
-        prompt = input("\n\nwould you like to overwrite existing data? (yes or no):\t")
-        prompt = prompt.lower()
+        if _flags:
+            prompt = input(f"\n\nwould you like to overwrite existing files for {selected_args_str}? (Y/N):")
+            prompt = prompt.lower()
 
+            if prompt == 'y':
+                if _all:
+                    for i in range(len(all_output)):
+                        file_path = Path(all_output[i]) # this needs to iterate
 
+                        # Delete the file is this option is selected.
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', file_path], check=True, shell=True)
+                            i += 1
+                            continue
 
-        if prompt == 'yes':
-            if _all:
-                for i in range(len(all_output)):
-                    file_path = Path(all_output[i]) # this needs to iterate
+                        else:
+                            subprocess.run(['rm', file_path], check=True)
+                            i += 1
+                            continue
 
-                    # Delete the file is this option is selected.
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', file_path], check=True, shell=True)
-                        i += 1
-                        continue
-
-                    else:
-                        subprocess.run(['rm', file_path], check=True)
-                        i += 1
-                        continue
-
-                print("files have been removed and will be recreated")
-                time.sleep(5)
-
-                return
-        
-            else:
-
-
-                if _apex:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', apex], check=True, shell=True)
-                        
-
-                    else:
-                        subprocess.run(['rm', apex], check=True)
-                    
-                    return
-
-    
-
-
-                if _asn:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', asn], check=True, shell=True)
-                        
-
-                    else:
-                        subprocess.run(['rm', asn], check=True)
+                    print("files have been removed and will be recreated")
+                    time.sleep(5)
 
                     return
-                    
             
+                else:
+
+
+                    if _apex:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', apex], check=True, shell=True)
+                            
+
+                        else:
+                            subprocess.run(['rm', apex], check=True)
+                        
+                        return
+
+        
+
+
+                    if _asn:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', asn], check=True, shell=True)
+                            
+
+                        else:
+                            subprocess.run(['rm', asn], check=True)
+
+                        return
+                        
                 
-                if _ports:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', portscan], check=True, shell=True)
-                        
+                    
+                    if _ports:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', portscan], check=True, shell=True)
+                            
 
-                    else:
-                        subprocess.run(['rm', portscan], check=True)
+                        else:
+                            subprocess.run(['rm', portscan], check=True)
 
-                    return
-
-                
-
-                if _subdomains:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', subdomains], check=True, shell=True)
-                        subprocess.run(['del', live_subs], check=True, shell=True)
-                        
-
-                    else:
-                        subprocess.run(['rm', subdomains], check=True)
-                        subprocess.run(['rm', live_subs], check=True)
-
-                    return
-
-
-
-                if _spider:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', spider], check=True, shell=True)
-                        
-
-                    else:
-                        subprocess.run(['rm', spider], check=True)
-
-                    return
-
-
-
-                if _tech_detection:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', tech], check=True, shell=True)
-                        
-
-                    else:
-                        subprocess.run(['rm', tech], check=True)
-
-                    return
-                
-
-
-                if _vulnscan:
-                    if platform.system() == 'Windows':
-                        subprocess.run(['del', vulnscan], check=True, shell=True)
-                        
-
-                    else:
-                        subprocess.run(['rm', vulnscan], check=True)
+                        return
 
                     
-                    return
+
+                    if _subdomains:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', subdomains], check=True, shell=True)
+                            subprocess.run(['del', live_subs], check=True, shell=True)
+                            
+
+                        else:
+                            subprocess.run(['rm', subdomains], check=True)
+                            subprocess.run(['rm', live_subs], check=True)
+
+                        return
 
 
-        elif prompt == 'no':
-            print("files will not be overwritten (This may take up more disc space and lead to duplicates)")
-            time.sleep(5)
-            return
-        
-        else:
-            print("invalid option selected")
-            handle_existing_files() # restart this function if invalid response
+
+                    if _spider:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', spider], check=True, shell=True)
+                            
+
+                        else:
+                            subprocess.run(['rm', spider], check=True)
+
+                        return
+
+
+
+                    if _tech_detection:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', tech], check=True, shell=True)
+                            
+
+                        else:
+                            subprocess.run(['rm', tech], check=True)
+
+                        return
+                    
+
+
+                    if _vulnscan:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', vulnscan], check=True, shell=True)
+                            
+
+                        else:
+                            subprocess.run(['rm', vulnscan], check=True)
+
+                        
+                        return
+
+
+            elif prompt == 'n':
+                print("files will not be overwritten (This may take up more disc space and lead to duplicates)")
+                time.sleep(5)
+                return
+            
+            else:
+                print("invalid option selected")
+                handle_existing_files() # restart this function if invalid response
 
 
 ###### ---------------------------------------------------------------------------------------------------------------------------------------
 
 
 def output_to_excel():
+
     """all_output = (
     apex,
     asn,
@@ -673,7 +692,7 @@ def output_to_excel():
         pass
 
 
-
+    
     # lets define our excel file:
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
 
@@ -720,361 +739,156 @@ def banner():
 # asn_grab()
 # run_commands()
 
-def main():
-    banner()
 
-    # Set arg variables
-    if _all:
+# # python banner text
+# banner_text = pyfiglet.figlet_format("BountyforOne")
+# author_text = "by Papv2"
+# desc_text = "One base, for all tools."
 
-        print("\n\n\nall flags selected, script will run all commands and output results in all available formats...\n\nPlease allow adequate time for completion...")
-        time.sleep(5)
+# # arguments to add for url or file use
+# parser = argparse.ArgumentParser(description="Bounty for one - Bug bounty tool")
+# parser.add_argument("-u", "--url", help="Enter the domain name for a single target (e.g example.com)")
+# parser.add_argument("-l", "--list", action='store_true', help="specify a file name with a list of targets (use output of -s)")
 
-        # remove existing files if yes
-        handle_existing_files()
+# # args to run scripts
+# parser.add_argument("-s", "--subdomains", action='store_true', help="first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains (use flag by itself to gather only subdomains)")
+# parser.add_argument("-ax", "--apex", action='store_true', help="Grab apex domains (include this option to also run options against discovered apex domains)")
+# parser.add_argument("-st", "--subdomain-takeover", action='store_true', help="provide a list of subdomains for subdomain takeover checks")
+# parser.add_argument("-td", "--tech-detection", action='store_true', help="run technnology detection against a single url (or discovere and run against apex and/or subdomains if -s is selected)")
+# parser.add_argument("-p", "--port", action='store_true', help="basic port scan on subdomains, apex, or url")
+# parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln scan on subdomains, apex, or url")
+# parser.add_argument("-sp", "--spider", action='store_true', help="basic spider on subdomains, apex, or url")
+# parser.add_argument("-as", "--asn",  action='store_true', help="grab asn information",)
 
-        # asn grab
+# # output args
+# parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
+# parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format as well as txt")
+# parser.add_argument("-oa", "--output-all",  action='store_true', help="output results in all formats (txt, xlsx)")
+
+
+
+# this is where the args will be defined
+def run_checks():
+    
+    if _asn:
         asn_grab()
 
-        # pull from the commands above
+    if _apex and _subdomains:
         run_apex()
         run_commands(commands["subdomains_apex_output"])
-        run_commands(commands["tech_detection_output"])
-        run_commands(commands["subdomain_takeover_output"])
-        run_commands(commands["portscan_output"])
-        run_commands(commands["vulnscan_output"])
-        run_commands(commands["spider_output"])
-    
-        return
 
+    if _apex:
+        run_apex()
 
-    if not _all:
-         
-        if not _all and not _flags and not _outputs:
- 
-            print("\n\n\nno flags selected, script will run all commands and output results by default...\n\nPlease allow adequate time for completion...")
-            time.sleep(5)
+    if _subdomains and _url:
+        run_commands(commands["subdomains_no_apex_output"])
 
-            # remove existing files if yes
-            handle_existing_files()
-
-            # asn grab
-            asn_grab()
-
-            # pull from the commands above
-            run_apex()
-            run_commands(commands["subdomains_apex_output"])
-            run_commands(commands["tech_detection_output"])
+    if _subtakeover and not _url:
+        if (live_subs).exists():
             run_commands(commands["subdomain_takeover_output"])
+        else:
+            print(f"Live subdomains file not found. please run {_subdomains} flag with {_subtakeover} option to populate subdomain file")
+            time.sleep(2)
+            return
+    
+    if _ports and _url:
+        run_commands(commands["portscan_url_only_output"])
+
+    if _ports and _list:
+        if (subdomains).exists():
             run_commands(commands["portscan_output"])
-            run_commands(commands["vulnscan_output"])
+        else:
+            print(f"Subdomains file not found. please run {_subdomains} flag with {_ports} option while using {_list} to populate subdomain file")
+            time.sleep(2)
+            return
+        
+    if _spider and _url:
+        run_commands(commands["spider_url_only_output"])
+
+    if _spider and _list:
+        if (subdomains).exists():
             run_commands(commands["spider_output"])
+        else:
+            print(f"Subdomains file not found. please run {_subdomains} flag with {_spider} option while using {_list} to populate subdomain file")
+            time.sleep(2)
+            return
+        
+    if _tech_detection and _url:
+        run_commands(commands["tech_detection_url_only_output"])
 
-            output_to_excel()
+    if _tech_detection and _list:
+        if (subdomains).exists():
+            run_commands(commands["tech_detection_output"])
+        else:
+            print(f"Subdomains file not found. please run {_subdomains} flag with {_tech_detection} option while using {_list} to populate subdomain file")
+            time.sleep(2)
+            return
+    
+    if _vulnscan and _url:
+        run_commands(commands["vulnscan_url_only_output"])
 
+    if _vulnscan and _list:
+        if (subdomains).exists():
+            run_commands(commands["vulnscan_output"])
+        else:
+            print(f"Subdomains file not found. please run {_subdomains} flag with {_vulnscan} option while using {_list} to populate subdomain file")
+            time.sleep(2)
             return
 
 
-
-        if _asn:
-            handle_existing_files()
-            asn_grab()
-
-
-        # if subdomains or apex is specified
-        if not _subdomains and not _apex:
-            if not any([_outputs]):
-                if _ports:
-                    run_commands(commands["portscan_url_only"])
-                    
-                
-                if _tech_detection:
-                    run_commands(commands["tech_detection_url_only"])
-
-                if _vulnscan:
-                    run_commands(commands["vulnscan_url_only"])
-
-                if _spider:
-                    run_commands(commands["spider_url_only"])
-
-                return
-            
-            if _output:
-                # remove existing files if yes
-                handle_existing_files()
-                if _ports:
-                    run_commands(commands["portscan_url_only_output"])
-                
-                if _tech_detection:
-                    run_commands(commands["tech_detection_url_only_output"])
-
-                if _vulnscan:
-                    run_commands(commands["vulnscan_url_only_output"])
-
-                if _spider:
-                    run_commands(commands["spider_url_only_output"])
-
-                return
-            
-            if _outputexcel:
-                # remove existing files if yes
-                handle_existing_files()
-                if _ports:
-                    run_commands(commands["portscan_url_only_output"])
-                
-                if _tech_detection:
-                    run_commands(commands["tech_detection_url_only_output"])
-
-                if _vulnscan:
-                    run_commands(commands["vulnscan_url_only_output"])
-
-                if _spider:
-                    run_commands(commands["spider_url_only_output"])
-                
-                output_to_excel()
-                return
-
-
-
-
-        # is subdomains is specified but not apex (output automatically for subdomains for file read)
-        if not _apex:
-            if not any([_outputs]):
-
-                if _subdomains:
-
-                    run_commands(commands["subdomains_no_apex_output"])
-
-                if _ports:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                        
-
-                    run_commands(commands["portscan"])
-
-                
-                if _tech_detection:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["tech_detection"])
-
-                
-                if _spider:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["spider"])
-
-                
-                if _vulnscan:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["vulnscan"])
-
-                return
-            
-            if _output:
-                # remove existing files if yes
-                handle_existing_files()
-                if _subdomains:
-
-                    run_commands(commands["subdomains_no_apex_output"])
+# This is to handle all flags or no flag behavior, no flags == all and all == all
+def run_checks_for_all():
+    asn_grab()
+    run_apex()
+    run_commands(commands["subdomains_apex_output"])
+    run_commands(commands["subdomain_takeover_output"])
+    run_commands(commands["portscan_output"])
+    run_commands(commands["spider_output"])
+    run_commands(commands["tech_detection_output"])
+    run_commands(commands["vulnscan_output"])
     
+    return
 
-                if _ports:
 
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
+def output_prompt_for_excel():
 
-                    run_commands(commands["portscan_output"])
-
-                
-                if _tech_detection:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["tech_detection_output"])
-
-                
-                if _spider:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["spider_output"])
-     
-                
-                if _vulnscan:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["vulnscan_output"])
-
-                return
-
-            if _outputexcel:
-                # remove existing files if yes
-                handle_existing_files()
-                if _subdomains:
-
-                    run_commands(commands["subdomains_no_apex_output"])
-
-                if _ports:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-
-                    run_commands(commands["portscan_output"])
-
-                
-                if _tech_detection:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["tech_detection_output"])
-
-                
-                if _spider:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["spider_output"])
-
-                
-                if _vulnscan:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_no_apex_output"])
-                    
-                    run_commands(commands["vulnscan_output"])
-                
+    # prompt user if they want to update the excel file
+    if not excel_file.exists():
+        output_to_excel()
+    else:
+        if excel_file.exists():
+            prompt_ = input(f"{excel_file} exists for {domain_name}, would you like to overwrite the worksheets for {selected_args_str}? (y/n)").lower()
+            if prompt_ == 'n':
+                pass
+            elif prompt_ == 'y':
                 output_to_excel()
-
-                return
-
-        
-
-        # run the apex domains
-        if _apex:
-            if not any([_outputs]):
-                run_apex()
-                
-                if _subdomains:
-
-                    run_commands(commands["subdomains_apex"])
-          
-                
-                if _ports:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex"])
-
-                    run_commands(commands["portscan"])
-              
-                
-                if _tech_detection:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex"])
-                    
-                    run_commands(commands["tech_detection"])
-            
-                
-                if _spider:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex"])
-                    
-                    run_commands(commands["spider"])
-           
-                
-                if _vulnscan:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex"])
-                    
-                    run_commands(commands["vulnscan"])
-                
-                return
-            
-            if _output:
-                # remove existing files if yes
-                handle_existing_files()
-                run_apex()
-                
-                if _subdomains:
-
-                    run_commands(commands["subdomains_apex_output"])
-                
-                if _ports:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-
-                    run_commands(commands["portscan_output"])
-                
-                if _tech_detection:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-                    
-                    run_commands(commands["tech_detection_output"])
-                
-                if _spider:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-                    
-                    run_commands(commands["spider_output"])
-                
-                if _vulnscan:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-                    
-                    run_commands(commands["vulnscan_output"])
-                
-                return
-            
-            if _outputexcel:
-                # remove existing files if yes
-                handle_existing_files()
-                run_apex()
-                
-                if _subdomains:
-
-                    run_commands(commands["subdomains_apex_output"])
-                
-                if _ports:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-
-                    run_commands(commands["portscan_output"])
-                
-                if _tech_detection:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-                    
-                    run_commands(commands["tech_detection_output"])
-                
-                if _spider:
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-                    
-                    run_commands(commands["spider_output"])
-                
-                if _vulnscan:
-
-                    if not subdomains.exists():
-                        run_commands(commands["subdomains_apex_output"])
-                    
-                    run_commands(commands["vulnscan_output"])
-                
-                output_to_excel()
-                return
+            else:
+                print(f"invalid selection (y/n)")
+                output_prompt_for_excel()
 
 
-            ################# LEFT OFF HERE
+
+
+def main():
+    banner()
+    handle_existing_files()
+
+    # arg logic for -u and -l
+    if _url and _list:
+        parser.error("Either -u or -l must be provided, but not both.")
+
+    # if all flag or no flags selected, default to all.
+    if _all or not any(_all_flags):
+        print("\nno flags selection, running all scripts by default...")
+        time.sleep(2)
+        run_checks_for_all()
+        output_prompt_for_excel()
+        sys.exit(1)
+
+    run_checks()
+    output_prompt_for_excel()
+
+
 
 
 if __name__ == "__main__":
@@ -1082,16 +896,18 @@ if __name__ == "__main__":
 
 
 
+
 #### To Do
     
 ##### I need to add outputs for all and also the xlsx outputs   ---> so far only .txt (-o) is completed
 
+# change arg logic - run single port unless a list is specified - DONE
 # arg help page
-# create requirements and package up
+# create requirements and package up - DONE
 # change the way apex and asn handle -o (give it a non -o output)
 # readme.md
 # Add threading
-# requirements.txt ---> inatall paths include go_requirements.py - include that in main
+# requirements.txt ---> install paths include go_requirements.py - include that in main ----> made setup.py
 # add more tools
 ##### add more args
 # optimize
