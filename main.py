@@ -58,15 +58,15 @@ _ports = args.port
 _vulnscan = args.vulnscan
 _spider = args.spider
 _asn = args.asn
-_output = args.output
-_outputexcel = args.output_excel
+# _output = args.output
+# _outputexcel = args.output_excel
 
 # I want all to be default if nothing selected
 _all = args.all
 
-_outputs = any([_output, _outputexcel])
-# outputs should be always true for now
-_outputs = True
+# _outputs = any([_output, _outputexcel])
+# # outputs should be always true for now
+# _outputs = True
 
 # flags for any, and all_flags for all flags or no flags
 _flags = any([_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn])
@@ -93,7 +93,8 @@ if _list:
     domain_name = _list.split(".")[0]
 
 # global vars for url and list domains
-    
+
+domain_ = None
 if _url:
     domain_ = _url
 if _list:
@@ -207,7 +208,6 @@ gospider_flag_all = "-S"
 gospider_flag_url = "-s"
 
 
-
 # commands:
 commands = {
 
@@ -280,7 +280,12 @@ def run_apex():
     try:
         # iterate through the commands and run each of them
         for i in range(len(commands["apex_output"])):
-            output = subprocess.check_output(commands["apex_output"][i], stderr=subprocess.STDOUT, text=True, shell=True, timeout=timeout)
+            output = subprocess.check_output(
+                commands["apex_output"][i], 
+                stderr=subprocess.STDOUT, 
+                text=True, 
+                shell=True, 
+                timeout=timeout)
             print(output)
             sorted_output += f"{output}\n"
             time.sleep(1)
@@ -297,6 +302,8 @@ def run_apex():
     with open(apex, 'w+') as f:
         for domain in sorted(domains):
             f.write(f"{domain}\n")
+
+    return
 
 
 # this is to run all of the commands above (-a or --all flags
@@ -776,12 +783,13 @@ def run_checks():
     if _asn:
         asn_grab(domain_)
 
+    if _apex:
+        run_apex()
+
+
     if _apex and _subdomains:
         run_apex()
         run_commands(commands["subdomains_apex_output"])
-
-    if _apex:
-        run_apex()
 
     if _subdomains and _url:
         run_commands(commands["subdomains_no_apex_output"])
@@ -837,6 +845,8 @@ def run_checks():
             print(f"Subdomains file not found. please run {_subdomains} flag with {_vulnscan} option while using {_list} to populate subdomain file")
             time.sleep(2)
             return
+    
+    return
 
 
 # This is to handle all flags or no flag behavior, no flags == all and all == all
