@@ -24,3 +24,5 @@ notes:
 
 subdomains:
 
+imports:
+pyarrow  # (part of pandas)
