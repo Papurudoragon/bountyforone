@@ -14,7 +14,7 @@ sys.path.append('bin/')
 import go_packages
 from pathlib import Path
 import random
-from colorama import Fore, Style
+from colorama import Fore
 import pyfiglet
 
 
