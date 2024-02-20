@@ -1,3 +1,6 @@
+"""Bounty for one by Papv2. This is a continuous project that is aimed to organize Recon results into an easily readable excel document.
+usage: python3 bountyforone.py -h/--help"""
+
 import subprocess
 import os
 from pathlib import Path
@@ -9,8 +12,6 @@ import platform
 import re
 import pandas as pd
 import concurrent.futures
-sys.path.append('src/')
-import go_packages
 sys.path.append('bin/')
 import check_mdi
 from pathlib import Path
