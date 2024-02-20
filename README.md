@@ -8,8 +8,9 @@ Install Instructions:
   pip install -r requirements.txt
   ```
 
-**linux ONLY**" # This command MUST also be run for linux systems for the script to work
-  `sudo chmod +x bin/*/*`
+**linux ONLY**" 
+# This command MUST also be run for linux systems for the script to work
+  ```sudo chmod +x bin/*/*```
 
 
 usage:
