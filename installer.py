@@ -8,6 +8,7 @@ import platform
 
 
 current_os = platform.system()
+
 if not go_packages.is_go_installed():
     print(f"Go is not detected. Attempting installation for {current_os}...")
     current_os = platform.system()

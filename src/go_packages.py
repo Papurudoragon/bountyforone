@@ -7,18 +7,16 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import tempfile
+import shutil
 
 class GoNotInstalledException(Exception):
     pass
 
+
 def is_go_installed():
-    """Check if Go is installed by attempting to run 'go version'."""
-    try:
-        subprocess.run(["go", "version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        return True
-    except Exception as e:
-        print(f"{e}")
-        return False
+    """Check if Go is installed by searching for the 'go' command in PATH."""
+    return shutil.which("go") is not None
+
 
 def download_file(url, filename):
     try:
