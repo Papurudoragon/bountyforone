@@ -21,6 +21,7 @@ Bounty for one - Bug bounty tool
   -oa, --output-all     output results in all formats (txt, xlsx)
   -a, --all             Run all checks default if only -u is selected with nothing else.```
 
-  example:
-  # This example extracts subdomains, technology stack, and ports
+
+example usage:
+# This example extracts subdomains, technology stack, and ports
   `python3 bountyforone.py -l example.com -s -td -p`
