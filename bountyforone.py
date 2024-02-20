@@ -1,4 +1,4 @@
-"""Bounty for one by Papv2. This is a continuous project that is aimed to organize Recon results into an easily readable excel document.
+"""Bountyforone, by Papv2, is a continuous project that is aimed to organize Recon results into an easily readable excel document.
 usage: python3 bountyforone.py -h/--help"""
 
 import subprocess
@@ -226,7 +226,6 @@ commands = {
         f"httpx {httpx_flag_all} {subdomains} -o {live_subs}"
     ],
 
-
     "tech_detection_output": [
         f"httpx -sc -td -ip -method -cl {httpx_flag_all} {subdomains} -o {tech}"
     ],
@@ -234,12 +233,9 @@ commands = {
         f"httpx -sc -td -ip -method -cl {httpx_flag_url} {domain_} -o {tech}"
     ],
 
-
-
     "subdomain_takeover_output": [
         f"subzy run --targets {live_subs} >> {sub_takeover}"
     ],
-
 
     "portscan_output": [
         f"naabu {naabu_flag_all} {subdomains} -v -p {naabu_ports} -o {portscan}"
@@ -248,14 +244,12 @@ commands = {
         f"naabu {naabu_flag_url} {_url} -v -p {naabu_ports} -o {portscan}"
     ],
 
-
     "vulnscan_output": [
          f"nuclei {nuclei_flag_all} {live_subs} -t http/ -v -o {vulnscan}"
     ],
     "vulnscan_url_only_output": [
         f"nuclei {nuclei_flag_url} {domain_} -t http/ -v -o {vulnscan}"
     ],
-
 
     "spider_output": [
         f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v >> {spider}"
@@ -389,49 +383,37 @@ def handle_existing_files():
             
                 else:
 
-
                     if _apex:
                         if platform.system() == 'Windows':
                             subprocess.run(['del', apex], check=True, shell=True)
-                            
-
+                         
                         else:
                             subprocess.run(['rm', apex], check=True)
                         
                         return
 
-        
-
-
                     if _asn:
                         if platform.system() == 'Windows':
-                            subprocess.run(['del', asn], check=True, shell=True)
-                            
+                            subprocess.run(['del', asn], check=True, shell=True)                     
 
                         else:
                             subprocess.run(['rm', asn], check=True)
 
                         return
-                        
-                
-                    
+                                        
                     if _ports:
                         if platform.system() == 'Windows':
                             subprocess.run(['del', portscan], check=True, shell=True)
                             
-
                         else:
                             subprocess.run(['rm', portscan], check=True)
 
-                        return
-
-                    
+                        return      
 
                     if _subdomains:
                         if platform.system() == 'Windows':
                             subprocess.run(['del', subdomains], check=True, shell=True)
-                            subprocess.run(['del', live_subs], check=True, shell=True)
-                            
+                            subprocess.run(['del', live_subs], check=True, shell=True)                     
 
                         else:
                             subprocess.run(['rm', subdomains], check=True)
@@ -439,43 +421,32 @@ def handle_existing_files():
 
                         return
 
-
-
                     if _spider:
                         if platform.system() == 'Windows':
                             subprocess.run(['del', spider], check=True, shell=True)
                             
-
                         else:
                             subprocess.run(['rm', spider], check=True)
 
                         return
 
-
-
                     if _tech_detection:
                         if platform.system() == 'Windows':
                             subprocess.run(['del', tech], check=True, shell=True)
                             
-
                         else:
                             subprocess.run(['rm', tech], check=True)
 
-                        return
-                    
-
+                        return          
 
                     if _vulnscan:
                         if platform.system() == 'Windows':
-                            subprocess.run(['del', vulnscan], check=True, shell=True)
-                            
+                            subprocess.run(['del', vulnscan], check=True, shell=True)                
 
                         else:
                             subprocess.run(['rm', vulnscan], check=True)
-
-                        
+              
                         return
-
 
             elif prompt == 'n':
                 print("files will not be overwritten (This may take up more disc space and lead to duplicates)")
@@ -519,7 +490,6 @@ def output_to_excel():
     except FileNotFoundError:
         pass
 
-    
     try:
         with open(live_subs, 'r', encoding='utf-8') as live_file:
             live_content = live_file.read().splitlines()
@@ -527,7 +497,6 @@ def output_to_excel():
                 live_subdomains_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
-
 
     # httpx results need a but more cleaning and formatting
     try:
@@ -541,7 +510,6 @@ def output_to_excel():
     except FileNotFoundError:
         pass
 
-
     # naabu needs a bit of cleaning and formatting
     try:
         with open(portscan, 'r', encoding='utf-8') as port_file:
@@ -550,7 +518,6 @@ def output_to_excel():
                     port_scan_xlsx.append((host, port))
     except FileNotFoundError:
         pass
-
 
     # nuclei needs a bit of formatting
     try:
@@ -576,7 +543,6 @@ def output_to_excel():
     except FileNotFoundError:
         pass
 
-
     try:
         with open(spider, 'r', encoding='utf-8') as spider_file:
             spider_content = spider_file.read().splitlines()
@@ -585,8 +551,6 @@ def output_to_excel():
     except FileNotFoundError:
         pass
 
-
-    
     # lets define our excel file:
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
 
@@ -613,8 +577,6 @@ def output_to_excel():
     return
 
 
-
-
 def banner():
 
     # banner shoes usage if implemented without flags
@@ -623,10 +585,8 @@ def banner():
     print(f"{Fore.YELLOW}{desc_text}")
     print(f"{Fore.CYAN}usage: python3 bountyforone.py -h/--help")
     time.sleep(3)
-
     
     return
-
 
 # this is where the args will be defined
 def run_checks():
@@ -701,7 +661,6 @@ def run_checks():
     
     return
 
-
 # This is to handle all flags or no flag behavior, no flags == all and all == all
 def run_checks_for_all():
     asn_grab(domain_)
@@ -714,7 +673,6 @@ def run_checks_for_all():
     run_commands(commands["vulnscan_output"])
     
     return
-
 
 def output_prompt_for_excel():
 
@@ -733,9 +691,6 @@ def output_prompt_for_excel():
                 output_prompt_for_excel()
     
     return
-
-
-
 
 def main():
     banner()
@@ -756,33 +711,5 @@ def main():
     run_checks()
     output_prompt_for_excel()
 
-
-
-
 if __name__ == "__main__":
     main()
-
-
-
-
-#### To Do
-    
-##### I need to add outputs for all and also the xlsx outputs   ---> so far only .txt (-o) is completed
-
-# change arg logic - run single port unless a list is specified - DONE
-# arg help page
-# Migrate from subprocess to custom libraries
-# create requirements and package up - DONE
-# change the way apex and asn handle -o (give it a non -o output)
-# readme.md
-# Add threading
-# requirements.txt ---> install paths include go_requirements.py - include that in main ----> made setup.py
-# add more tools
-##### add more args
-# optimize
-# grab js, parameters
-# fyi - if you want to specify a subdomain, just save it in an output folder as "output/domain/domain_subdomains.txt"
-# add shodan subdomain support
-# add github enum
-# add bbot enum
-# add permutations
