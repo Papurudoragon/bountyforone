@@ -1,6 +1,5 @@
 import sys
 sys.path.append('src/')
-import install_packages
 import nmap_install
 import go_packages
 import subprocess
@@ -20,7 +19,6 @@ if not go_packages.is_go_installed():
         go_packages.install_go_mac()
     else:
         print("Unsupported operating system.")
-        return  # Exit the script if the OS is not supported
 
 
 
