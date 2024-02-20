@@ -1,8 +1,8 @@
-This tool simplifies the recon process for bugbounty
+This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document
 
 usage:
 
-usage: main.py -u URL [-s] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-o] [-oe] [-oa] [-a]
+usage: bountyforone.py -u/-l URL [-s] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-o] [-oe] [-oa] [-a]
 
 Bounty for one - Bug bounty tool
 
@@ -20,3 +20,7 @@ Bounty for one - Bug bounty tool
   -oe, --output-excel   output results in excel format as well as txt
   -oa, --output-all     output results in all formats (txt, xlsx)
   -a, --all             Run all checks default if only -u is selected with nothing else.```
+
+  example:
+  # This example extracts subdomains, technology stack, and ports
+  `python3 bountyforone.py -l example.com -s -td -p`
