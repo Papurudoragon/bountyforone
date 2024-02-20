@@ -8,5 +8,5 @@ python3_nmap==1.6.0
 PyYAML==6.0.1
 PyYAML==6.0.1
 Requests==2.31.0
-setuptools==65.5.0
+setuptools==65.5.1
 termcolor==2.4.0
