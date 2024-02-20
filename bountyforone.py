@@ -36,7 +36,7 @@ parser.add_argument("-l", "--list", help="runs commands on a list of targets, (t
 parser.add_argument("-s", "--subdomains", action='store_true', help="first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains (use flag by itself to gather only subdomains)")
 parser.add_argument("-ls", "--live-subdomains", action='store_true', help="first discover subdomains then send requests and report on the subdomains that response back)")
 parser.add_argument("-ax", "--apex", action='store_true', help="Grab apex domains (include this option to also run options against discovered apex domains)")
-parser.add_argument("-st", "--subdomain-takeover", action='store_true', help="provide a list of subdomains for subdomain takeover checks")
+# parser.add_argument("-st", "--subdomain-takeover", action='store_true', help="provide a list of subdomains for subdomain takeover checks")
 parser.add_argument("-td", "--tech-detection", action='store_true', help="run technnology detection against a single url (or discovere and run against apex and/or subdomains if -s is selected)")
 parser.add_argument("-p", "--port", action='store_true', help="basic port scan on subdomains, apex, or url")
 parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln scan on subdomains, apex, or url")
@@ -57,7 +57,7 @@ _list = args.list
 _subdomains = args.subdomains
 _livesubs = args.live_subdomains
 _apex = args.apex
-_subtakeover = args.subdomain_takeover
+# _subtakeover = args.subdomain_takeover
 _tech_detection = args.tech_detection
 _ports = args.port
 _vulnscan = args.vulnscan
@@ -70,15 +70,15 @@ _all = args.all
 
 
 # flags for any, and all_flags for all flags or no flags
-_flags = any([_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover])
-_all_flags = (_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover)
+_flags = any([_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn,])
+_all_flags = (_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn,)
 
 # selected args vars for later mapping and parsing with file handling
 selected_args = []
 if _subdomains: selected_args.append('subdomains')
 if _apex: selected_args.append('apex')
 if _tech_detection: selected_args.append('tech_detection')
-if _subtakeover: selected_args.append('subdomain_takeover')
+# if _subtakeover: selected_args.append('subdomain_takeover')
 if _ports: selected_args.append('ports')
 if _vulnscan: selected_args.append('vulnscan')
 if _spider: selected_args.append('spider')
@@ -263,9 +263,9 @@ commands = {
         f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_url} {domain_} -o {tech}"
     ],
 
-    "subdomain_takeover_output": [
-        f"subzy run --targets {live_subs} >> {sub_takeover}"
-    ],
+    # "subdomain_takeover_output": [
+    #     f"subzy run --targets {live_subs} >> {sub_takeover}"
+    # ],
 
     "portscan_output": [
         f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_all} {subdomains} -v -p {naabu_ports} -o {portscan}"
@@ -654,13 +654,13 @@ def run_checks():
                 time.sleep(2)
                 return
 
-    if _subtakeover: 
-        if live_subs.exists():
-            run_commands(commands["subdomain_takeover_output"])
-        else:
-            print(f"Live subdomains file not found. please run {_livesubs} flag with {_subtakeover} option to populate subdomain file")
-            time.sleep(2)
-            return
+    # if _subtakeover: 
+    #     if live_subs.exists():
+    #         run_commands(commands["subdomain_takeover_output"])
+    #     else:
+    #         print(f"Live subdomains file not found. please run {_livesubs} flag with {_subtakeover} option to populate subdomain file")
+    #         time.sleep(2)
+    #         return
     
     if _ports:
         if _url:
@@ -715,7 +715,7 @@ def run_checks_for_all():
     run_apex(domain_)
     run_commands(commands["subdomains_apex_output"])
     run_commands(commands["live_subs_output"])
-    run_commands(commands["subdomain_takeover_output"])
+    # run_commands(commands["subdomain_takeover_output"])
     run_commands(commands["portscan_output"])
     run_commands(commands["spider_output"])
     run_commands(commands["tech_detection_output"])

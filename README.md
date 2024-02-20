@@ -1,12 +1,25 @@
 This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document
 
+Install Instructions:
+
+(all OS):
+  ```
+  python3 bin_installer.py
+  pip install -r requirements.txt
+  ```
+
+**linux ONLY**" # This command MUST also be run for linux systems for the script to work
+  `sudo chmod +x bin/*/*`
+
+
 usage:
 
 usage: bountyforone.py -u/-l URL [-s] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-o] [-oe] [-oa] [-a]
 
 Bounty for one - Bug bounty tool
 
-```options:
+```
+options:
   -h, --help            show this help message and exit
   -u URL, --url URL     Enter the domain name for the target (e.g example.com)
   -s, --subdomains      first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains
@@ -19,22 +32,15 @@ Bounty for one - Bug bounty tool
   -o, --output          output results to a .txt file
   -oe, --output-excel   output results in excel format as well as txt
   -oa, --output-all     output results in all formats (txt, xlsx)
-  -a, --all             Run all checks default if only -u is selected with nothing else.```
+  -a, --all             Run all checks default if only -u is selected with nothing else.
+  ```
 
 
 example usage:
-  # This example extracts subdomains, technology stack, and ports
+  # This example extracts subdomains, technology stack, and ports from the gathered subdomains
   `python3 bountyforone.py -l example.com -s -td -p`
 
 
 
 
 
-to install:
-
-(all OS):
-  python3 bin_installer.py
-  pip install -r requirements.txt
-
-(linux/unix only)"
-  chmod +x *
