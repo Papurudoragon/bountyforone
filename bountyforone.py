@@ -34,6 +34,7 @@ parser.add_argument("-l", "--list", help="runs commands on a list of targets, (t
 
 # args to run scripts
 parser.add_argument("-s", "--subdomains", action='store_true', help="first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains (use flag by itself to gather only subdomains)")
+parser.add_argument("-ls", "--live-subdomains", action='store_true', help="first discover subdomains then send requests and report on the subdomains that response back)")
 parser.add_argument("-ax", "--apex", action='store_true', help="Grab apex domains (include this option to also run options against discovered apex domains)")
 parser.add_argument("-st", "--subdomain-takeover", action='store_true', help="provide a list of subdomains for subdomain takeover checks")
 parser.add_argument("-td", "--tech-detection", action='store_true', help="run technnology detection against a single url (or discovere and run against apex and/or subdomains if -s is selected)")
@@ -54,6 +55,7 @@ args = parser.parse_args()
 _url = args.url
 _list = args.list
 _subdomains = args.subdomains
+_livesubs = args.live_subdomains
 _apex = args.apex
 _subtakeover = args.subdomain_takeover
 _tech_detection = args.tech_detection
@@ -68,8 +70,8 @@ _all = args.all
 
 
 # flags for any, and all_flags for all flags or no flags
-_flags = any([_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover])
-_all_flags = (_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover)
+_flags = any([_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover])
+_all_flags = (_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover)
 
 # selected args vars for later mapping and parsing with file handling
 selected_args = []
@@ -81,9 +83,31 @@ if _ports: selected_args.append('ports')
 if _vulnscan: selected_args.append('vulnscan')
 if _spider: selected_args.append('spider')
 if _asn: selected_args.append('asn')
+if _livesubs: selected_args.append('live_subs')
 
 # string format
 selected_args_str = ", ".join(selected_args)
+
+
+# set tool install paths for commands
+os_arch = platform.machine().lower()
+os_type = platform.system().lower()
+
+if os_type == "windows":
+        if os_arch in ["x86_64", "amd64"]:
+            subfinder_ = "subfinder.exe"
+            nuclei_ = "nuclei.exe"
+            httpx_ = "httpx.exe"
+            naabu_ = "naabu.exe"
+            katana_ = "katana.exe"
+
+else:
+    subfinder_ = "./subfinder"
+    nuclei_ = "./nuclei"
+    httpx_ = "./httpx"
+    naabu_ = "./naabu"
+    katana_ = "./katana"
+
 
 
 ## Global vars for url and list domain without the .com
@@ -147,7 +171,7 @@ user_agent = [
 headers = {'User-Agent': random.choice(user_agent)}
 
 # set the script timeout
-timeout = 300
+timeout = 450
 
 
 ## Output Section
@@ -208,29 +232,35 @@ naabu_ports = "21,22,25,53,80,389,443,8080,3306,5432"
 nuclei_flag_all = "-l" 
 nuclei_flag_url = "-u"
 
-gospider_flag_all = "-S"
-gospider_flag_url = "-s"
+katana_flag_all = "-list"
+katana_flag_url = "-u"
 
 
 # commands:
 commands = {
 
     "subdomains_apex_output": [
-        f"subfinder {subfinder_flag_all} {apex} -v -o {subdomains} ",
+        f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_all} {apex} -v -o {subdomains}"
         # f"amass enum -d {apex}",
-        f"httpx {httpx_flag_all} {subdomains} -v -o {live_subs}"
     ],
     "subdomains_no_apex_output": [
-        f"subfinder {subfinder_flag_url} {domain_} -v -o {subdomains}",
+        f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_url} {domain_} -v -o {subdomains}"
         # f"amass enum -d {_url}",
-        f"httpx {httpx_flag_all} {subdomains} -o {live_subs}"
+    ],
+
+    "live_subs_output": [
+        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_all} {subdomains} -o {live_subs}"
+    ],
+
+    "live_subs_url_output": [
+        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_all} {domain_} -o {live_subs}"
     ],
 
     "tech_detection_output": [
-        f"httpx -sc -td -ip -method -cl {httpx_flag_all} {subdomains} -o {tech}"
+        f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_all} {subdomains} -o {tech}"
     ],
     "tech_detection_url_only_output": [
-        f"httpx -sc -td -ip -method -cl {httpx_flag_url} {domain_} -o {tech}"
+        f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_url} {domain_} -o {tech}"
     ],
 
     "subdomain_takeover_output": [
@@ -238,24 +268,24 @@ commands = {
     ],
 
     "portscan_output": [
-        f"naabu {naabu_flag_all} {subdomains} -v -p {naabu_ports} -o {portscan}"
+        f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_all} {subdomains} -v -p {naabu_ports} -o {portscan}"
     ],
     "portscan_url_only_output": [
-        f"naabu {naabu_flag_url} {_url} -v -p {naabu_ports} -o {portscan}"
+        f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_url} {_url} -v -p {naabu_ports} -o {portscan}"
     ],
 
     "vulnscan_output": [
-         f"nuclei {nuclei_flag_all} {live_subs} -t http/ -v -o {vulnscan}"
+         f"{Path('bin') / 'nuclei' / nuclei_} {nuclei_flag_all} {live_subs} -t http/ -v -o {vulnscan}"
     ],
     "vulnscan_url_only_output": [
-        f"nuclei {nuclei_flag_url} {domain_} -t http/ -v -o {vulnscan}"
+        f"{Path('bin') / 'nuclei' / nuclei_} {nuclei_flag_url} {domain_} -t http/ -v -o {vulnscan}"
     ],
 
     "spider_output": [
-        f"gospider {gospider_flag_all} {live_subs} -t 2 --js --sitemap --robots -v >> {spider}"
+        f"{Path('bin') / 'katana' / katana_} {katana_flag_all} {live_subs} -js -kf -o {spider}"
     ],
     "spider_url_only_output":[
-        f"gospider {gospider_flag_url} https://{domain_} -t 2 --js --sitemap --robots -v >> {spider}"
+        f"{Path('bin') / 'katana' / katana_} {katana_flag_url} https://{domain_} -js -kf -jsl -o {spider}"
     ]
 }
 
@@ -412,11 +442,18 @@ def handle_existing_files():
 
                     if _subdomains:
                         if platform.system() == 'Windows':
-                            subprocess.run(['del', subdomains], check=True, shell=True)
-                            subprocess.run(['del', live_subs], check=True, shell=True)                     
+                            subprocess.run(['del', subdomains], check=True, shell=True)                  
 
                         else:
                             subprocess.run(['rm', subdomains], check=True)
+
+                        return
+                    
+                    if _livesubs:
+                        if platform.system() == 'Windows':
+                            subprocess.run(['del', live_subs], check=True, shell=True)                     
+
+                        else:
                             subprocess.run(['rm', live_subs], check=True)
 
                         return
@@ -606,11 +643,22 @@ def run_checks():
             if _list:
                 run_commands(commands["subdomains_no_apex_output"])
 
+    if _livesubs:
+        if _url:
+            run_commands(commands['live_subs_url_output'])
+        if _list:
+            if (subdomains).exists():
+                run_commands(commands['live_subs_output'])
+            else:
+                print(f"Subdomains file not found. please run {_subdomains} flag with {_livesubs} option while using {_list} to populate subdomain file first")
+                time.sleep(2)
+                return
+
     if _subtakeover: 
         if live_subs.exists():
             run_commands(commands["subdomain_takeover_output"])
         else:
-            print(f"Live subdomains file not found. please run {_subdomains} flag with {_subtakeover} option to populate subdomain file")
+            print(f"Live subdomains file not found. please run {_livesubs} flag with {_subtakeover} option to populate subdomain file")
             time.sleep(2)
             return
     
@@ -621,7 +669,7 @@ def run_checks():
             if (subdomains).exists():
                 run_commands(commands["portscan_output"])
             else:
-                print(f"Subdomains file not found. please run {_subdomains} flag with {_ports} option while using {_list} to populate subdomain file")
+                print(f"Subdomains file not found. please run {_livesubs} flag with {_ports} option while using {_list} to populate subdomain file")
                 time.sleep(2)
                 return
         
@@ -666,6 +714,7 @@ def run_checks_for_all():
     asn_grab(domain_)
     run_apex(domain_)
     run_commands(commands["subdomains_apex_output"])
+    run_commands(commands["live_subs_output"])
     run_commands(commands["subdomain_takeover_output"])
     run_commands(commands["portscan_output"])
     run_commands(commands["spider_output"])
@@ -713,3 +762,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# to do
+# remove subzy

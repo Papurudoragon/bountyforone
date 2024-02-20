@@ -23,5 +23,18 @@ Bounty for one - Bug bounty tool
 
 
 example usage:
-# This example extracts subdomains, technology stack, and ports
+  # This example extracts subdomains, technology stack, and ports
   `python3 bountyforone.py -l example.com -s -td -p`
+
+
+
+
+
+to install:
+
+(all OS):
+  python3 bin_installer.py
+  pip install -r requirements.txt
+
+(linux/unix only)"
+  chmod +x *
