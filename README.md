@@ -1,6 +1,6 @@
 This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document
 
-Install Instructions:
+# Install Instructions:
 
 (all OS):
   ```
@@ -9,15 +9,17 @@ Install Instructions:
   ```
 
 **linux ONLY**" 
-# This command MUST also be run for linux systems for the script to work
-  ```sudo chmod +x bin/*/*```
+** This command MUST also be run for linux systems for the script to work**
+  ```
+  sudo chmod +x bin/*/*
+  ```
 
 
-usage:
+# usage:
 
-usage: bountyforone.py -u/-l URL [-s] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-o] [-oe] [-oa] [-a]
+*usage:* bountyforone.py -u/-l URL [-s] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-o] [-oe] [-oa] [-a]
 
-Bounty for one - Bug bounty tool
+**Bountyforone - Bug bounty tool**
 
 ```
 options:
@@ -38,7 +40,7 @@ options:
 
 
 example usage:
-  # This example extracts subdomains, technology stack, and ports from the gathered subdomains
+  **This example extracts subdomains, technology stack, and ports from the gathered subdomains**
   `python3 bountyforone.py -l example.com -s -td -p`
 
 
