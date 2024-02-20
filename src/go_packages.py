@@ -6,6 +6,7 @@ import shutil
 import time
 import requests
 from bs4 import BeautifulSoup
+import tempfile
 
 class GoNotInstalledException(Exception):
     pass
@@ -79,11 +80,28 @@ def install_go_linux():
     go_linux_url = get_latest_go_version_url("Linux")
     if not go_linux_url:
         print("Failed to find the latest Go version URL for Linux.")
-        return
+        return False
 
-    install_command = f"wget {go_linux_url} && sudo tar -C /usr/local -xzf {go_linux_url.split('/')[-1]} && rm {go_linux_url.split('/')[-1]}"
-    subprocess.run(install_command, shell=True, check=True)
-    return
+    # Use a temporary file for the download to avoid name conflicts and cleanup issues
+    with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+        download_command = f"wget -O {tmpfile.name} '{go_linux_url}'"
+        try:
+            print("Downloading Go...")
+            subprocess.run(download_command, shell=True, check=True)
+            
+            print("Extracting Go...")
+            # Now extract directly using the temporary file path
+            extract_command = f"sudo tar -C /usr/local -xzf {tmpfile.name}"
+            subprocess.run(extract_command, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Command failed: {e}")
+            return False
+        finally:
+            # Clean up the downloaded file
+            os.remove(tmpfile.name)
+        
+        print("Go installation successful. Please ensure /usr/local/go/bin is in your PATH.")
+        return True
 
 def install_go_mac():
     go_mac_url = get_latest_go_version_url("macOS")
