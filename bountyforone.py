@@ -10,13 +10,15 @@ import re
 import pandas as pd
 import concurrent.futures
 sys.path.append('src/')
-sys.path.append('bin/')
 import go_packages
+sys.path.append('bin/')
+import check_mdi
 from pathlib import Path
 import random
 from colorama import Fore
 import pyfiglet
-
+import io
+from contextlib import redirect_stdout
 
 
 # python banner text
@@ -39,9 +41,9 @@ parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln s
 parser.add_argument("-sp", "--spider", action='store_true', help="basic spider on subdomains, apex, or url")
 parser.add_argument("-as", "--asn",  action='store_true', help="grab asn information",)
 
-# output args
-parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
-parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format as well as txt")
+# # output args
+# parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
+# parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format as well as txt")
 
 # flag for all checks
 parser.add_argument("-a", "--all", action='store_true', help="Run all checks default if only -u is selected with nothing else.")
@@ -58,25 +60,22 @@ _ports = args.port
 _vulnscan = args.vulnscan
 _spider = args.spider
 _asn = args.asn
-# _output = args.output
-# _outputexcel = args.output_excel
+
 
 # I want all to be default if nothing selected
 _all = args.all
 
-# _outputs = any([_output, _outputexcel])
-# # outputs should be always true for now
-# _outputs = True
 
 # flags for any, and all_flags for all flags or no flags
-_flags = any([_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn])
-_all_flags = (_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn)
+_flags = any([_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover])
+_all_flags = (_subdomains, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn, _subtakeover)
 
 # selected args vars for later mapping and parsing with file handling
 selected_args = []
 if _subdomains: selected_args.append('subdomains')
 if _apex: selected_args.append('apex')
 if _tech_detection: selected_args.append('tech_detection')
+if _subtakeover: selected_args.append('subdomain_takeover')
 if _ports: selected_args.append('ports')
 if _vulnscan: selected_args.append('vulnscan')
 if _spider: selected_args.append('spider')
@@ -189,6 +188,10 @@ output_path.mkdir(parents=True, exist_ok=True)
 
 
 # Command flags
+
+# apex location flag
+apex_mdi = Path("bin") / "check_mdi.py"
+
 # dL for list of apex, -d for single url
 subfinder_flag_all = "-dL"
 subfinder_flag_url = "-d"
@@ -210,11 +213,6 @@ gospider_flag_url = "-s"
 
 # commands:
 commands = {
-
-    "apex_output": [
-        f"python3 src/check_mdi-main/check_mdi.py -d {domain_} >> {apex}"
-    ],
-
 
     "subdomains_apex_output": [
         f"subfinder {subfinder_flag_all} {apex} -v -o {subdomains} ",
@@ -275,38 +273,31 @@ commands = {
 
 #### -----------------------------------------------------------------------------------------------------------------------------------
 
-def run_apex():
-    sorted_output = ""
-    try:
-        # iterate through the commands and run each of them
-        for i in range(len(commands["apex_output"])):
-            output = subprocess.check_output(
-                commands["apex_output"][i], 
-                stderr=subprocess.STDOUT, 
-                text=True, 
-                shell=True, 
-                timeout=timeout)
-            print(output)
-            sorted_output += f"{output}\n"
-            time.sleep(1)
-            i += 1
-    except subprocess.CalledProcessError as e:
-        print(f'Command {commands["apex_output"]} failed with error: {e.stderr}')
-    except subprocess.TimeoutExpired:
-        print(f'Command timed out')
+def run_apex(url):
+    # IO can help us to temporarily redirect stdout to capture the output of get_domains
+    f = io.StringIO()
     
-    # only extract domains, we can use regex for this
+    # This prints the mdi domain information
+    with redirect_stdout(f):
+        check_mdi.get_domains(url)  
+
+    # Get the captured output
+    sorted_output = f.getvalue()
+
+    # Only extract domains, we can use regex for this
     domain_pattern = re.compile(r'\b[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
     domains = set(domain_pattern.findall(sorted_output))
     
-    with open(apex, 'w+') as f:
+    # Write cleaned results to a fule
+    with open(apex, 'w+') as file:
         for domain in sorted(domains):
-            f.write(f"{domain}\n")
+            file.write(f"{domain}\n")
+
+    # Close the StringIO object
+    f.close()
 
     return
 
-
-####### need to fix this
 
 # this is to run all of the commands above (-a or --all flags
 def run_commands(command):
@@ -339,19 +330,9 @@ def run_commands(command):
     return
 
 
-# grab ASNs for given domain (part of the commands, technically)
+# grab ASNs for given domain
 def asn_grab(url):
 
-    # # check for existing asn file first:
-    # if asn.exists():
-    #     while True:
-    #         in_ = input(f"{asn} already exists, would you like to re-run the command and append (Y/N)?").lower()
-    #         if in_ == "n":
-    #             return
-    #         elif in_ == "y":
-    #             break
-    #         else:
-    #             print("invalid selection (Y or N)")
 
     response = requests.get (f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
     if response.status_code == 200:
@@ -370,9 +351,7 @@ def asn_grab(url):
         print(f"failed to fetch asn data: {response.status_code}")
         
 
-
-
-# handle the existing files (prompt user) and do some stuff: #######
+# handle the existing files (prompt user) and do some stuff: 
 def handle_existing_files():
     for file in all_output:
         if file.exists():
@@ -511,18 +490,6 @@ def handle_existing_files():
 
 
 def output_to_excel():
-
-    """all_output = (
-    apex,
-    asn,
-    subdomains,
-    live_subs,
-    sub_takeover,
-    tech,
-    portscan,
-    vulnscan,
-    spider
-    )"""
 
     # read several files and format for excel
     
@@ -667,7 +634,7 @@ def run_checks():
         asn_grab(domain_)
 
     if _apex:
-        run_apex()
+        run_apex(domain_)
         if _subdomains:
             run_commands(commands["subdomains_apex_output"])
 
@@ -678,8 +645,8 @@ def run_checks():
             if _list:
                 run_commands(commands["subdomains_no_apex_output"])
 
-    if _subtakeover and not _url:
-        if (live_subs).exists():
+    if _subtakeover: 
+        if live_subs.exists():
             run_commands(commands["subdomain_takeover_output"])
         else:
             print(f"Live subdomains file not found. please run {_subdomains} flag with {_subtakeover} option to populate subdomain file")
@@ -737,7 +704,7 @@ def run_checks():
 # This is to handle all flags or no flag behavior, no flags == all and all == all
 def run_checks_for_all():
     asn_grab(domain_)
-    run_apex()
+    run_apex(domain_)
     run_commands(commands["subdomains_apex_output"])
     run_commands(commands["subdomain_takeover_output"])
     run_commands(commands["portscan_output"])

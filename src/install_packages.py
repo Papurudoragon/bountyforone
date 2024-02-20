@@ -1,7 +1,7 @@
 import sys
 import platform
 import nmap_install
-sys.path.append('bin/')
+sys.path.append('src/')
 import go_packages
 
 # go installer

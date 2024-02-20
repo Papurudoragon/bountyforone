@@ -2,8 +2,6 @@
 
 """
 Python script to enumerate valid Microsoft 365 domains, retrieve tenant name, and check for an MDI instance.
-Based on: https://github.com/thalpius/Microsoft-Defender-for-Identity-Check-Instance.
-Usage: ./check_mdi.py -d <domain>
 """
 
 import argparse
@@ -13,8 +11,7 @@ from urllib.request import urlopen, Request
 
 
 # Get domains
-def get_domains(args):
-    domain = args.domain
+def get_domains(domain):
 
     # Create a valid HTTP request
     # Example from: https://docs.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-oxwsadisc/18fe58cd-3761-49da-9e47-84e7b4db36c2
@@ -96,10 +93,4 @@ def check_mdi(tenant):
         print(f"\n[-] No MDI instance was found for {tenant}\n")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Enumerates valid Microsoft 365 domains, retrieves tenant name, and checks for MDI instance")
-    parser.add_argument(
-        "-d", "--domain", help="input domain name, example format: example.com", required=True)
-    args = parser.parse_args()
-    get_domains(args)
+# get_domains("domain")
