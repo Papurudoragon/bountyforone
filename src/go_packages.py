@@ -125,7 +125,7 @@ def set_go_path():
     if operating_system == "Windows":
         gopath = os.path.join(os.environ['USERPROFILE'], 'go')
     else:
-        gopath = os.path.join(os.environ['HOME'], 'go')
+        gopath = "/usr/local/go"
 
     os.environ['GOPATH'] = gopath
     os.environ['PATH'] = os.path.join(gopath, 'bin') + os.pathsep + os.environ['PATH']
