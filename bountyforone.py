@@ -111,11 +111,13 @@ else:
 
 
 
-## Global vars for url and list domain without the .com
+## Global vars for url and list domain without the .com >> this extracts the domain only
 if _url:
-    domain_name = _url.split(".")[0]
+    extracted = tldextract.extract(_url)
+    domain_name = extracted.domain.lower()
 if _list:
-    domain_name = _list.split(".")[0]
+    extracted = tldextract.extract(_list)
+    domain_name = extracted.domain.lower()
 
 
 selected_args = [] # this is for existing args
@@ -276,7 +278,7 @@ commands = {
     ],
 
     "live_subs_url_output": [
-        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_all} {_url} -o {live_subs}"
+        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_url} {_url} -o {live_subs}"
     ],
 
     "tech_detection_output": [
