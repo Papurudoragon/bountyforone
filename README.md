@@ -1,4 +1,4 @@
-This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document. The idea behind this is to collect information for recon, adn help with visualizing the data that is collected. 
+This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document. The idea behind this is to collect information for recon, and help with visualizing the data that is collected. 
 
 ![plot](src/image.png)
 
@@ -41,9 +41,9 @@ options:
 
 
 example usage:
-  **This example extracts subdomains, technology stack, and ports from the gathered subdomains**
+  **This example extracts technology stack and ports from the specified file**
   ```
-  python3 bountyforone.py -l example.com -s -td -p
+  python3 bountyforone.py -l example.txt -td -p
   ```
 
 
