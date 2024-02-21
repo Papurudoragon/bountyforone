@@ -1,6 +1,6 @@
 This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document. The idea behind this is to collect information for recon, adn help with visualizing the data that is collected. 
 
-![alt text](image.png)
+![plot](image.png)
 
 
 # Install Instructions:
