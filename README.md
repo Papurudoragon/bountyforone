@@ -1,4 +1,5 @@
-This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document
+This tool simplifies the recon process for bugbounty and organizes all findings into an Excel Document. The idea behind this is to collect information for recon, adn help with visualizing the data that is collected. 
+
 
 # Install Instructions:
 
@@ -15,9 +16,9 @@ This tool simplifies the recon process for bugbounty and organizes all findings 
   ```
 
 
-# usage:
+# Usage:
 
-*usage:* bountyforone.py -u/-l URL [-s] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-o] [-oe] [-oa] [-a]
+*usage:* bountyforone.py -u/-l URL [-s] [-ls] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-a]
 
 **Bountyforone - Bug bounty tool**
 
@@ -25,7 +26,7 @@ This tool simplifies the recon process for bugbounty and organizes all findings 
 options:
   -h, --help            show this help message and exit
   -u URL, --url URL     Enter the domain name for the target (e.g example.com)
-  -l URL, --list URL           runs commands on a list of targets, (this uses output of -s so run that if you dont have that output already)
+  -l URL, --list URL    runs commands on a list of targets, (this uses output of -s so run that if you dont have that output already)
   -s, --subdomains      first discover subdomains and/or apex domains (if -ax), then run options against discovered subdomains
   -ls --live-subdomains first discover subdomains then send requests and report on the subdomains that respond back
   -ax, --apex           Grab apex domains (include this option to also run options against discovered apex domains)
@@ -39,7 +40,9 @@ options:
 
 example usage:
   **This example extracts subdomains, technology stack, and ports from the gathered subdomains**
-  `python3 bountyforone.py -l example.com -s -td -p`
+  ```
+  python3 bountyforone.py -l example.com -s -td -p
+  ```
 
 
 

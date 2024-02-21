@@ -10,3 +10,4 @@ PyYAML==6.0.1
 Requests==2.31.0
 setuptools==65.5.1
 termcolor==2.4.0
+tldextract==5.1.1
