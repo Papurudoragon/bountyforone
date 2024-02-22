@@ -307,10 +307,10 @@ commands = {
     ],
 
     "spider_output": [
-        f"{Path('bin') / 'katana' / katana_} {katana_flag_all} {_list} -js -kf -o {spider}"
+        f"{Path('bin') / 'katana' / katana_} {katana_flag_all} {_list} -jc -kf -o {spider}"
     ],
     "spider_url_only_output":[
-        f"{Path('bin') / 'katana' / katana_} {katana_flag_url} https://{_url} -js -kf -jsl -o {spider}"
+        f"{Path('bin') / 'katana' / katana_} {katana_flag_url} https://{_url} -jc -kf -jsl -o {spider}"
     ]
 }
 
@@ -841,4 +841,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
