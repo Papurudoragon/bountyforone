@@ -20,7 +20,7 @@ This tool simplifies the recon process for bugbounty and organizes all findings 
 
 # Usage:
 
-*usage:* bountyforone.py -u/-l URL [-s] [-ls] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-a]
+*usage:* bountyforone.py -u/-l URL [-s] [-ls] [-ax] [-td] [-p] [-vs] [-sp] [-as] [-a] -o OUTPUT_FILE
 
 **Bountyforone - Bug bounty tool**
 
@@ -37,13 +37,14 @@ options:
   -vs, --vulnscan       basic vuln scan on url or list of domains
   -sp, --spider         basic spider on url or list of domains
   -as, --asn            grab asn information for url or list of domains
+  -o, --output          specify output directory and file[required](.txt) - xlsx will pull data from this file.
   ```
 
 
 example usage:
-  **This example extracts technology stack and ports from the specified file**
+  **This example extracts technology stack from the specified file**
   ```
-  python3 bountyforone.py -l example.txt -td -p
+  python3 bountyforone.py -l example.txt -td -o 
   ```
 
 
