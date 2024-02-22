@@ -116,8 +116,10 @@ if _url:
     extracted = tldextract.extract(_url)
     domain_name = extracted.domain.lower()
 if _list:
-    extracted = tldextract.extract(_list)
-    domain_name = extracted.domain.lower()
+    with open(_list, 'r') as f5:
+        for line in f5.readlines():
+            extracted = tldextract.extract(line)
+            domain_name = extracted.domain.lower()
 
 
 selected_args = [] # this is for existing args
