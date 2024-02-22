@@ -140,15 +140,6 @@ else:
     naabu_ = "./naabu"
     katana_ = "./katana"
 
-
-
-## Global vars for url and list domain without the .com >> this extracts the domain only
-# if _url:
-#     dom = DomainName(_url, output=None)
-#     domain_name = dom.get_dname()
-# if _list:
-#     DomainName(domain=None, output=None).get_dname_list(_list)
-
 selected_args = [] # this is for existing args
 existing_files = [] # this is for existing files
 # base_dir = Path('output') / domain_name

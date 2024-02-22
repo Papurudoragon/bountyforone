@@ -44,7 +44,7 @@ options:
 example usage:
   **This example extracts technology stack from the specified file**
   ```
-  python3 bountyforone.py -l example.txt -td -o 
+  python3 bountyforone.py -l example.txt -td -o ./output/example
   ```
 
 
