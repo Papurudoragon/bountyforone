@@ -372,8 +372,6 @@ def asn_grab(url):
     if _url:
 
         response = requests.get (f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
-        print(response)
-        print("test")
         if response.status_code == 200:
             data = response.json()
 
