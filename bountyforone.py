@@ -571,6 +571,7 @@ def output_to_excel():
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
 
         # create dataframs for the posted results
+        apex_xlsx = [] # for some reason the initial define of apex_xlsx above is not being stored??? oh well we define again
         df_apex = pd.DataFrame(apex_xlsx, columns=['Apex Domains'])
         df_asn = pd.DataFrame(asn_xlsx, columns=['ASN IP', 'Domain'])
         df_subdomains = pd.DataFrame(subdomain_xlsx, columns=['Subdomains'])
