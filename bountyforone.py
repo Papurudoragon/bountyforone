@@ -88,8 +88,9 @@ _asn = args.asn
 output_flag = "-o "
 
 # for instantiate our DomainName class
-with open(_list, 'r') as f5:
-    first_line = f5.readline().strip()
+if _list:
+    with open(_list, 'r') as f5:
+        first_line = f5.readline().strip()
     
 if _url is not None:
     url_output = DomainName(_url, args.output).get_output()
