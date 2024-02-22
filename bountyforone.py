@@ -140,15 +140,6 @@ else:
     naabu_ = "./naabu"
     katana_ = "./katana"
 
-
-
-## Global vars for url and list domain without the .com >> this extracts the domain only
-# if _url:
-#     dom = DomainName(_url, output=None)
-#     domain_name = dom.get_dname()
-# if _list:
-#     DomainName(domain=None, output=None).get_dname_list(_list)
-
 selected_args = [] # this is for existing args
 existing_files = [] # this is for existing files
 # base_dir = Path('output') / domain_name
@@ -300,7 +291,7 @@ def run_apex(url):
         domains = set(domain_pattern.findall(sorted_output))
         
         # Write cleaned results to a file
-        with open(args.output, 'w+') as file:
+        with open(f"{args.output}_apex.txt", 'w+') as file:
             for domain in sorted(domains):
                 file.write(f"{domain}\n")
 
@@ -310,7 +301,7 @@ def run_apex(url):
     # handle for list
     if _list:
         # open file for parsing and also file for writing to
-        with open(_list, 'r') as file1, open(args.output, 'a+') as file2:
+        with open(_list, 'r') as file1, open(f"{args.output}_apex.txt", 'a+') as file2:
             for line in file1:
                 u = line.strip()
         
@@ -381,8 +372,6 @@ def asn_grab(url):
     if _url:
 
         response = requests.get (f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
-        print(response)
-        print("test")
         if response.status_code == 200:
             data = response.json()
 
@@ -571,6 +560,7 @@ def output_to_excel():
     with pd.ExcelWriter(excel_file, engine="xlsxwriter") as writer:
 
         # create dataframs for the posted results
+        apex_xlsx = [] # for some reason the initial define of apex_xlsx above is not being stored??? oh well we define again
         df_apex = pd.DataFrame(apex_xlsx, columns=['Apex Domains'])
         df_asn = pd.DataFrame(asn_xlsx, columns=['ASN IP', 'Domain'])
         df_subdomains = pd.DataFrame(subdomain_xlsx, columns=['Subdomains'])
