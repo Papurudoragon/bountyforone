@@ -291,7 +291,7 @@ def run_apex(url):
         domains = set(domain_pattern.findall(sorted_output))
         
         # Write cleaned results to a file
-        with open(args.output, 'w+') as file:
+        with open(f"{args.output}_apex.txt", 'w+') as file:
             for domain in sorted(domains):
                 file.write(f"{domain}\n")
 
@@ -301,7 +301,7 @@ def run_apex(url):
     # handle for list
     if _list:
         # open file for parsing and also file for writing to
-        with open(_list, 'r') as file1, open(args.output, 'a+') as file2:
+        with open(_list, 'r') as file1, open(f"{args.output}_apex.txt", 'a+') as file2:
             for line in file1:
                 u = line.strip()
         
