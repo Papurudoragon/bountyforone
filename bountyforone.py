@@ -228,7 +228,7 @@ commands = {
         f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_all} {_list} -v {output_flag}{url_output}_subdomains.txt"
         # f"amass enum -d {apex}",
     ],
-    
+
     "subdomains_no_list_output": [
         f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_url} {_url} -v {output_flag}{url_output}_subdomains.txt"
         # f"amass enum -d {_url}",
@@ -668,6 +668,9 @@ def main():
     # arg logic for -u and -l
     if _url and _list:
         parser.error("Either -u or -l must be provided, but not both.")
+    
+    if not args.output:
+        parser.error("output flag [-o <OUTPUT>] must be specified!")
         
     run_checks()
     output_prompt_for_excel()
