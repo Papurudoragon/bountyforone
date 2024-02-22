@@ -23,6 +23,26 @@ from contextlib import redirect_stdout
 import tldextract
 
 
+
+# define our class for domain handling and output
+class DomainName:
+    
+    # strips tld and subdoamin, so example.com would return example
+    def __init__(self, domain, output):
+        extracted = tldextract.extract(domain)
+
+        self.domain = extracted.domain.lower()
+        self.output = output
+
+    # return just the domain not tld or subdoamin
+    def get_dname(self): 
+        return self.domain
+
+    # define to output files to output folders
+    def get_output(self):
+        return self.output
+
+
 # python banner text
 banner_text = pyfiglet.figlet_format("BountyforOne")
 author_text = "by Papv2"
@@ -44,12 +64,11 @@ parser.add_argument("-vs", "--vulnscan", action='store_true', help="basic vuln s
 parser.add_argument("-sp", "--spider", action='store_true', help="basic spider on url or list of domains")
 parser.add_argument("-as", "--asn",  action='store_true', help="grab asn information for url or list of domains",)
 
-# # output args
-# parser.add_argument("-o", "--output", required=False, action='store_true', help="output results to a .txt file")
-# parser.add_argument("-oe", "--output-excel",  action='store_true', help="output results in excel format as well as txt")
+# output args
+parser.add_argument("-o", "--output", required=True, help="output results to a .txt file")
 
-# flag for all checks
-parser.add_argument("-a", "--all", action='store_true', help="Run all checks default if only -u is selected with nothing else.")
+# # flag for all checks
+# parser.add_argument("-a", "--all", action='store_true', help="Run all checks default if only -u is selected with nothing else.")
 
 args = parser.parse_args()
 
@@ -65,13 +84,24 @@ _vulnscan = args.vulnscan
 _spider = args.spider
 _asn = args.asn
 
+# for the scripts
+output_flag = "-o "
 
-# I want all to be default if nothing selected
-_all = args.all
+# for instantiate our DomainName class
+with open(_list, 'r') as f5:
+    first_line = f5.readline().strip()
+    
+if _url is not None:
+    url_output = DomainName(_url, args.output).get_output()
+else:
+    first_line  # Assigns the stripped first line to _url
+    url_output = DomainName(first_line, args.output).get_output()
+
+# need one for -l
 
 
 # flags for any, and all_flags for all flags or no flags
-_flags = any([_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn,])
+# _flags = any([_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn,])
 _all_flags = (_subdomains, _livesubs, _apex, _tech_detection, _ports, _vulnscan, _spider, _asn,)
 
 # selected args vars for later mapping and parsing with file handling
@@ -112,19 +142,15 @@ else:
 
 
 ## Global vars for url and list domain without the .com >> this extracts the domain only
-if _url:
-    extracted = tldextract.extract(_url)
-    domain_name = extracted.domain.lower()
-if _list:
-    with open(_list, 'r') as f5:
-        for line in f5.readlines():
-            extracted = tldextract.extract(line)
-            domain_name = extracted.domain.lower()
-
+# if _url:
+#     dom = DomainName(_url, output=None)
+#     domain_name = dom.get_dname()
+# if _list:
+#     DomainName(domain=None, output=None).get_dname_list(_list)
 
 selected_args = [] # this is for existing args
 existing_files = [] # this is for existing files
-base_dir = Path('output') / domain_name
+# base_dir = Path('output') / domain_name
 max_memory = 0 # we gotta limit memory usage to handle processing with less RAM
 curr_memory = 0 # we gotta limit memory usage to handle processing with less RAM
 
@@ -139,8 +165,6 @@ vuln_scan_xlsx = []
 dir_search_xlsx = []
 spider_xlsx = []
 js_spider_xlsx = []
-
-
 
 ## User agents for request making
 user_agent = [
@@ -169,78 +193,12 @@ user_agent = [
 headers = {'User-Agent': random.choice(user_agent)}
 
 # set the script timeout
-timeout = 450
-
-
-## Output Section
-###### ----------------------------------------------------------------------------------------------------------------------  
-
-# assign output file names for url
-if _url:
-    apex = base_dir / f"apex_{domain_name}.txt"
-    asn = base_dir / f"asn_{domain_name}.txt"
-    subdomains = base_dir / f"subdomains_{domain_name}.txt"
-    live_subs = base_dir / f"live_subs_{domain_name}.txt"
-    sub_takeover = base_dir / f"sub_takeover_{domain_name}.txt"
-    tech = base_dir / f"tech_{domain_name}.txt"
-    portscan = base_dir / f"portscan_{domain_name}.txt"
-    vulnscan = base_dir / f"vulnscan_{domain_name}.txt"
-    spider = base_dir / f"spider_{domain_name}.txt"
-
-
-# assign output file names for list - eventually this will be up to the user
-if _list:
-    with open(_list, 'r') as f1:
-        first_line = f1.readline().strip()
-        extracted = tldextract.extract(first_line)
-        
-        # This ensures that 'example' is extracted from 'subdomain.example.com', 'example.com', or 'example.co.uk'
-        domain_ = extracted.domain.lower()
-
-    # set new base dir
-    base_list_dir = Path('output') / domain_
-
-    apex = base_list_dir / f"apex_{domain_}.txt"
-    asn = base_list_dir / f"asn_{domain_}.txt"
-    subdomains = base_list_dir / f"subdomains_{domain_}.txt"
-    live_subs = base_list_dir / f"live_subs_{domain_}.txt"
-    sub_takeover = base_list_dir / f"sub_takeover_{domain_}.txt"
-    tech = base_list_dir / f"tech_{domain_}.txt"
-    portscan = base_list_dir / f"portscan_{domain_}.txt"
-    vulnscan = base_list_dir / f"vulnscan_{domain_}.txt"
-    spider = base_list_dir / f"spider_{domain_}.txt"
-
-
+timeout = 800
 
 # this is for the excel file url location and list location
-if _url:
-    excel_file = base_dir / f"{domain_name}_recon_spreadsheet.xlsx"
-if _list:
-    excel_file = base_list_dir / f"{domain_}_recon_spreadsheet.xlsx"
-
-# This is just here to add more output later and make it cleaner
-all_output = (
-    apex,
-    asn,
-    subdomains,
-    live_subs,
-    sub_takeover,
-    tech,
-    portscan,
-    vulnscan,
-    spider,
-    excel_file
-    )
-
-
-# output file directory for the file names
-output_path = Path("output") / domain_name
-output_path.mkdir(parents=True, exist_ok=True)
-
-
+excel_file =  Path(f"{os.path.dirname(args.output)}") / "bountyforone_spreadsheet.xlsx"
 
 # Command flags
-
 # apex location flag
 apex_mdi = Path("bin") / "check_mdi.py"
 
@@ -267,63 +225,60 @@ katana_flag_url = "-u"
 commands = {
 
     "subdomains_list_output": [
-        f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_all} {_list} -v -o {subdomains}"
+        f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_all} {_list} -v {output_flag}{url_output}_subdomains.txt"
         # f"amass enum -d {apex}",
     ],
+    
     "subdomains_no_list_output": [
-        f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_url} {_url} -v -o {subdomains}"
+        f"{Path('bin') / 'subfinder' / subfinder_} {subfinder_flag_url} {_url} -v {output_flag}{url_output}_subdomains.txt"
         # f"amass enum -d {_url}",
     ],
 
     "live_subs_output": [
-        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_all} {_list} -o {live_subs}"
+        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_all} {_list} {output_flag}{url_output}_livesubs.txt"
     ],
 
     "live_subs_url_output": [
-        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_url} {_url} -o {live_subs}"
+        f"{Path('bin') / 'httpx' / httpx_} {httpx_flag_url} {_url} {output_flag}{url_output}_livesubs.txt"
     ],
 
     "tech_detection_output": [
-        f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_all} {_list} -o {tech}"
-    ],
-    "tech_detection_url_only_output": [
-        f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_url} {_url} -o {tech}"
+        f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_all} {_list} {output_flag}{url_output}_techdetection.txt"
     ],
 
-    # "subdomain_takeover_output": [
-    #     f"subzy run --targets {live_subs} >> {sub_takeover}"
-    # ],
+    "tech_detection_url_only_output": [
+        f"{Path('bin') / 'httpx' / httpx_} -sc -td -ip -method -cl {httpx_flag_url} {_url} {output_flag}{url_output}_techdetection.txt"
+    ],
 
     "portscan_output": [
-        f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_all} {_list} -v -p {naabu_ports} -o {portscan}"
+        f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_all} {_list} -v -p {naabu_ports} {output_flag}{url_output}_portscan.txt"
     ],
+
     "portscan_url_only_output": [
-        f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_url} {_url} -v -p {naabu_ports} -o {portscan}"
+        f"{Path('bin') / 'naabu' / naabu_} {naabu_flag_url} {_url} -v -p {naabu_ports} {output_flag}{url_output}_portscan.txt"
     ],
 
     "vulnscan_output": [
-         f"{Path('bin') / 'nuclei' / nuclei_} {nuclei_flag_all} {_list} -t http/ -v -o {vulnscan}"
+         f"{Path('bin') / 'nuclei' / nuclei_} {nuclei_flag_all} {_list} -t http/ -v {output_flag}{url_output}_nuclei.txt"
     ],
+
     "vulnscan_url_only_output": [
-        f"{Path('bin') / 'nuclei' / nuclei_} {nuclei_flag_url} {_url} -t http/ -v -o {vulnscan}"
+        f"{Path('bin') / 'nuclei' / nuclei_} {nuclei_flag_url} {_url} -t http/ -v {output_flag}{url_output}_nuclei.txt"
     ],
 
     "spider_output": [
-        f"{Path('bin') / 'katana' / katana_} {katana_flag_all} {_list} -jc -kf -o {spider}"
+        f"{Path('bin') / 'katana' / katana_} {katana_flag_all} {_list} -jc -kf {output_flag}{url_output}_spider.txt"
     ],
+
     "spider_url_only_output":[
-        f"{Path('bin') / 'katana' / katana_} {katana_flag_url} https://{_url} -jc -kf -jsl -o {spider}"
+        f"{Path('bin') / 'katana' / katana_} {katana_flag_url} https://{_url} -jc -kf -jsl {output_flag}{url_output}_spider.txt"
     ]
 }
 
 
-##### -----------------------------------------------------------------------------------------------------------------------------
-
 
 """The section below is to run commands"""
 
-
-#### -----------------------------------------------------------------------------------------------------------------------------------
 
 def run_apex(url):
     
@@ -343,8 +298,8 @@ def run_apex(url):
         domain_pattern = re.compile(r'\b[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
         domains = set(domain_pattern.findall(sorted_output))
         
-        # Write cleaned results to a fule
-        with open(apex, 'w+') as file:
+        # Write cleaned results to a file
+        with open(args.output, 'w+') as file:
             for domain in sorted(domains):
                 file.write(f"{domain}\n")
 
@@ -354,7 +309,7 @@ def run_apex(url):
     # handle for list
     if _list:
         # open file for parsing and also file for writing to
-        with open(_list, 'r') as file1, open(apex, 'a+') as file2:
+        with open(_list, 'r') as file1, open(args.output, 'a+') as file2:
             for line in file1:
                 u = line.strip()
         
@@ -425,10 +380,12 @@ def asn_grab(url):
     if _url:
 
         response = requests.get (f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
+        print(response)
+        print("test")
         if response.status_code == 200:
             data = response.json()
 
-            with open(asn, "w+") as file1:
+            with open(f"{url_output}_asn.txt", "w+") as file1:
                 if 'data' in data and 'ipv4_prefixes' in data['data']:
                     for prefix in data['data']['ipv4_prefixes']:
                         file1.write(f"{prefix['ip']}, {prefix['name']}\n")
@@ -439,235 +396,173 @@ def asn_grab(url):
         
         else:
             print(f"failed to fetch asn data: {response.status_code}")
+        
+        return
     
     # handle input for list
     if _list:
-        with open(_list, 'r') as file1, open(asn, 'a+') as file2:
+        with open(_list, 'r') as file1, open(f"{url_output}_asn.txt", 'w+') as file2:
             for line in file1:
                 u = line.strip()
                 response = requests.get (f"https://api.bgpview.io/search?query_term={u}", headers=headers) # randomize user agents
                 if response.status_code == 200:
                     data = response.json()
 
-                    with open(asn, "w+") as file1:
-                        if 'data' in data and 'ipv4_prefixes' in data['data']:
-                            for prefix in data['data']['ipv4_prefixes']:
-                                file1.write(f"{prefix['ip']}, {prefix['name']}\n")
-                                print(f"{prefix['ip']}, {prefix['name']}")
+                    if 'data' in data and 'ipv4_prefixes' in data['data']:
+                        for prefix in data['data']['ipv4_prefixes']:
+                            file2.write(f"{prefix['ip']}, {prefix['name']}\n")
+                            print(f"{prefix['ip']}, {prefix['name']}")
 
                         else:
                             print("no ASNs found")
                 
                 else:
                     print(f"failed to fetch asn data: {response.status_code}")
+        return
 
-# handle the existing files (prompt user) and do some stuff: 
+# handle the existing files and fail if the user specifies a file that already exists ---> to remove later
 def handle_existing_files():
-    for file in all_output:
-        if file.exists():
-            existing_files.append(file)
+    pass
 
-    if not existing_files:
-        pass
-
-    else:
-        if _flags:
-            prompt = input(f"\n\nwould you like to overwrite existing files for {selected_args_str}? (Y/N):")
-            prompt = prompt.lower()
-
-            if prompt == 'y':
-                if _all:
-                    for i in range(len(all_output)):
-                        file_path = Path(all_output[i]) # this needs to iterate
-
-                        # Delete the file is this option is selected.
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', file_path], check=True, shell=True)
-                            i += 1
-                            continue
-
-                        else:
-                            subprocess.run(['rm', file_path], check=True)
-                            i += 1
-                            continue
-
-                    print("files have been removed and will be recreated")
-                    time.sleep(5)
-
-                    return
-            
-                else:
-
-                    if _apex:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', apex], check=True, shell=True)
-                         
-                        else:
-                            subprocess.run(['rm', apex], check=True)
-                        
-                        return
-
-                    if _asn:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', asn], check=True, shell=True)                     
-
-                        else:
-                            subprocess.run(['rm', asn], check=True)
-
-                        return
-                                        
-                    if _ports:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', portscan], check=True, shell=True)
-                            
-                        else:
-                            subprocess.run(['rm', portscan], check=True)
-
-                        return      
-
-                    if _subdomains:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', subdomains], check=True, shell=True)                  
-
-                        else:
-                            subprocess.run(['rm', subdomains], check=True)
-
-                        return
-                    
-                    if _livesubs:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', live_subs], check=True, shell=True)                     
-
-                        else:
-                            subprocess.run(['rm', live_subs], check=True)
-
-                        return
-
-                    if _spider:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', spider], check=True, shell=True)
-                            
-                        else:
-                            subprocess.run(['rm', spider], check=True)
-
-                        return
-
-                    if _tech_detection:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', tech], check=True, shell=True)
-                            
-                        else:
-                            subprocess.run(['rm', tech], check=True)
-
-                        return          
-
-                    if _vulnscan:
-                        if platform.system() == 'Windows':
-                            subprocess.run(['del', vulnscan], check=True, shell=True)                
-
-                        else:
-                            subprocess.run(['rm', vulnscan], check=True)
-              
-                        return
-
-            elif prompt == 'n':
-                print("files will not be overwritten (This may take up more disc space and lead to duplicates)")
-                time.sleep(3)
-                return
-            
-            else:
-                print("invalid option selected")
-                handle_existing_files() # restart this function if invalid response
-
-###### ---------------------------------------------------------------------------------------------------------------------------------------
 
 def output_to_excel():
 
     # read several files and format for excel
     
+    directory = os.path.dirname(args.output)
+
     try:
-        with open(apex, 'r', encoding='utf-8') as apex_file:
-            apex_content = apex_file.read().splitlines()
-            for line in apex_content:
-                apex_xlsx.append(f"{line}\n")
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "apex" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    apex_content = file.read().splitlines()
+                    apex_xlsx = [f"{line}\n" for line in apex_content]
+                    # Process apex_content or apex_xlsx as needed
+    except FileNotFoundError:
+        pass
+
+
+    try:
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "asn" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as asn_file:
+                    asn_content = asn_file.read().splitlines()
+                    for line in asn_content:
+                        ip, domain = line.strip().split(',')
+                        asn_xlsx.append((ip, domain))
     except FileNotFoundError:
         pass
 
     try:
-        with open(asn, 'r', encoding='utf-8') as asn_file:
-            asn_content = asn_file.read().splitlines()
-            for line in asn_content:
-                ip, domain = line.strip().split(',')
-                asn_xlsx.append((ip, domain))
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "subdomain" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as subdomains_file:
+                    sub_content = subdomains_file.read().splitlines()
+                    for line in sub_content:
+                        subdomain_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
     try:
-        with open(subdomains, 'r', encoding='utf-8') as subdomains_file:
-            sub_content = subdomains_file.read().splitlines()
-            for line in sub_content:
-                subdomain_xlsx.append(f"{line}\n")
-    except FileNotFoundError:
-        pass
-
-    try:
-        with open(live_subs, 'r', encoding='utf-8') as live_file:
-            live_content = live_file.read().splitlines()
-            for line in live_content:
-                live_subdomains_xlsx.append(f"{line}\n")
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "livesub" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as live_file:
+                    live_content = live_file.read().splitlines()
+                    for line in live_content:
+                        live_subdomains_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
     # httpx results need a but more cleaning and formatting
     try:
-        with open(tech, 'r', encoding='utf-8') as tech_file:
-            for line in tech_file:
-                clean_pattern = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-                cleaned_line = re.sub(clean_pattern, '', line)
-                tech_parts = cleaned_line.strip().split('[')
-                tech_content = [part.replace(']', '').strip() for part in tech_parts]
-                tech_xlsx.append(tech_content)
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "techdetect" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as tech_file:
+                    for line in tech_file:
+                        clean_pattern = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+                        cleaned_line = re.sub(clean_pattern, '', line)
+                        tech_parts = cleaned_line.strip().split('[')
+                        tech_content = [part.replace(']', '').strip() for part in tech_parts]
+                        tech_xlsx.append(tech_content)
     except FileNotFoundError:
         pass
 
     # naabu needs a bit of cleaning and formatting
     try:
-        with open(portscan, 'r', encoding='utf-8') as port_file:
-                for line in port_file:
-                    host, port = line.strip().split(':')
-                    port_scan_xlsx.append((host, port))
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "portscan" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as port_file:
+                        for line in port_file:
+                            host, port = line.strip().split(':')
+                            port_scan_xlsx.append((host, port))
     except FileNotFoundError:
         pass
 
     # nuclei needs a bit of formatting
     try:
-        with open(vulnscan, 'r', encoding='utf-8') as vuln_file:
-            pattern = re.compile(r'\[(.*?)\]')
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "nuclei" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as vuln_file:
+                    pattern = re.compile(r'\[(.*?)\]')
 
-            # position [3] is a url but not a list in nuclei, wierd format but we can fix that
-            url_pattern = re.compile(r'https?://[^\s\[\]]+')
-            for line in vuln_file:
-                parts = pattern.findall(line)
-                url_ = url_pattern.findall(line) 
-                if url_:
-                    host_ = url_[0]
-                else:
-                    host_ = ""
-                if len(parts) >=3:
-                    vuln_check_, method_, severity_, = parts[:3]   
-                if len(parts) > 3:
-                    findings_ = ''.join(parts[3:])
-                else:
-                    findings_ = ""
-                vuln_scan_xlsx.append([vuln_check_, method_, severity_, host_, findings_])
+                    # position [3] is a url but not a list in nuclei, wierd format but we can fix that
+                    url_pattern = re.compile(r'https?://[^\s\[\]]+')
+                    for line in vuln_file:
+                        parts = pattern.findall(line)
+                        url_ = url_pattern.findall(line) 
+                        if url_:
+                            host_ = url_[0]
+                        else:
+                            host_ = ""
+                        if len(parts) >=3:
+                            vuln_check_, method_, severity_, = parts[:3]   
+                        if len(parts) > 3:
+                            findings_ = ''.join(parts[3:])
+                        else:
+                            findings_ = ""
+                        vuln_scan_xlsx.append([vuln_check_, method_, severity_, host_, findings_])
     except FileNotFoundError:
         pass
 
     try:
-        with open(spider, 'r', encoding='utf-8') as spider_file:
-            spider_content = spider_file.read().splitlines()
-            for line in spider_content:
-                spider_xlsx.append(f"{line}\n")
+        # first list all files in the directory
+        for filename in os.listdir(directory):
+            # check if 'apex' is in the filename
+            if "spider" in filename:
+                # construct full path to the file if the file has apex in it
+                file_path = os.path.join(directory, filename)
+                with open(file_path, 'r', encoding='utf-8') as spider_file:
+                    spider_content = spider_file.read().splitlines()
+                    for line in spider_content:
+                        spider_xlsx.append(f"{line}\n")
     except FileNotFoundError:
         pass
 
@@ -710,89 +605,41 @@ def banner():
 # this is where the args will be defined
 def run_checks():
     
-    if _asn:
-        if _url:
+    if _url:
+        if _asn:
             asn_grab(_url)
-        if _list:
-            asn_grab(_list)
-
-    if _apex:
-        if _url:
+        if _apex:
             run_apex(_url)
-        if _list:
-            run_apex(_list)
-
-    if _subdomains: 
-            if _url:
-                run_commands(commands["subdomains_no_list_output"])
-            if _list:
-                run_commands(commands["subdomains_list_output"])
-
-    if _livesubs:
-        if _url:
+        if _subdomains: 
+            run_commands(commands["subdomains_no_list_output"])
+        if _livesubs:
             run_commands(commands['live_subs_url_output'])
-        if _list:
-            run_commands(commands['live_subs_output'])        
-
-    # if _subtakeover: 
-    #     if live_subs.exists():
-    #         run_commands(commands["subdomain_takeover_output"])
-    #     else:
-    #         print(f"Live subdomains file not found. please run {_livesubs} flag with {_subtakeover} option to populate subdomain file")
-    #         time.sleep(2)
-    #         return
-    
-    if _ports:
-        if _url:
-            run_commands(commands["portscan_url_only_output"])
-        if _list:
-            run_commands(commands["portscan_output"])
-        
-    if _spider:
-        if _url:
-            run_commands(commands["spider_url_only_output"])
-        if _list:
-            run_commands(commands["spider_output"])
-        
-    if _tech_detection: 
-        if _url:
+        if _ports:
+            run_commands(commands["portscan_url_only_output"]) 
+        if _spider:
+            run_commands(commands["spider_url_only_output"])         
+        if _tech_detection: 
             run_commands(commands["tech_detection_url_only_output"])
-        if _list:
-                run_commands(commands["tech_detection_output"])
-    
-    if _vulnscan: 
-        if _url:
+        if _vulnscan: 
             run_commands(commands["vulnscan_url_only_output"])
-        if _list:
+    
+    if _list:
+        if _asn:
+            asn_grab(_list)
+        if _apex:
+            run_apex(_list)
+        if _subdomains: 
+            run_commands(commands["subdomains_list_output"])
+        if _livesubs:
+            run_commands(commands['live_subs_output'])           
+        if _ports:
+            run_commands(commands["portscan_output"])
+        if _spider:
+            run_commands(commands["spider_output"])
+        if _tech_detection: 
+            run_commands(commands["tech_detection_output"])
+        if _vulnscan: 
             run_commands(commands["vulnscan_output"])
-    
-    return
-
-# This is to handle all flags or no flag behavior for url flag, no flags == all and all == all
-def run_checks_for_all_url():
-    asn_grab(_url)
-    run_apex(_url)
-    run_commands(commands["subdomains_no_list_output"])
-    run_commands(commands["live_subs_url_output"])
-    # run_commands(commands["subdomain_takeover_output"])
-    run_commands(commands["portscan_url_only_output"])
-    run_commands(commands["spider_url_only_output"])
-    run_commands(commands["tech_detection_url_only_output"])
-    run_commands(commands["vulnscan_url_only_output"])
-    
-    return
-
-# This is to handle all flags or no flag behavior for url flag, no flags == all and all == all
-def run_checks_for_all_list():
-    asn_grab(_list)
-    run_apex(_list)
-    run_commands(commands["subdomains_list_output"])
-    run_commands(commands["live_subs_output"])
-    # run_commands(commands["subdomain_takeover_output"])
-    run_commands(commands["portscan_output"])
-    run_commands(commands["spider_output"])
-    run_commands(commands["tech_detection_output"])
-    run_commands(commands["vulnscan_output"])
     
     return
 
@@ -803,7 +650,7 @@ def output_prompt_for_excel():
         output_to_excel()
     else:
         if excel_file.exists():
-            prompt_ = input(f"{excel_file} exists for {domain_name}, would you like to overwrite the worksheets for {selected_args_str}? (y/n): ").lower()
+            prompt_ = input(f"{excel_file} already exists, would you like to overwrite the worksheets for {selected_args_str}? (y/n): ").lower()
             if prompt_ == 'n':
                 pass
             elif prompt_ == 'y':
@@ -821,23 +668,7 @@ def main():
     # arg logic for -u and -l
     if _url and _list:
         parser.error("Either -u or -l must be provided, but not both.")
-
-    # if all flag or no flags selected, default to all.
-    if _all or not any(_all_flags):
-        if _url:
-            print("\nno flags selection, running all scripts on url by default...")
-            time.sleep(2)
-            run_checks_for_all_url()
-            output_prompt_for_excel()
-            sys.exit(1)
-
-        if _list:
-            print("\nno flags selection, running all scripts on list by default...")
-            time.sleep(2)
-            run_checks_for_all_list()
-            output_prompt_for_excel()
-            sys.exit(1)
-
+        
     run_checks()
     output_prompt_for_excel()
 
