@@ -162,6 +162,7 @@ sub_results = [] # for subdomains
 sub_sorted_cleaned = [] # for cleaned subdomains
 openp = [] # port scanner
 filtereddp = [] # port scanner
+asns_data = []
 
 # base_dir = Path('output') / domain_name
 max_memory = 0 # we gotta limit memory usage to handle processing with less RAM
@@ -419,14 +420,14 @@ def live_sub_check(url):
     # use python httpx for this --> renamed to http_client
     success = False
 
-    with open(Path(output_dir) / f"{DomainName(args.url).get_dname()}_live_subs.txt", "w", encoding='utf-8') as file:
+    with open(Path(output_dir) / f"{DomainName(args.url).get_dname()}_live_hosts.txt", "w", encoding='utf-8') as file:
         for protocol in ['http', 'https']:
             if success:
                 break
             with http_client.Client(headers=headers, follow_redirects=True) as client:
                 try:
                     req = client.get(f"{protocol}://{url}")
-                    print(f"{req.url} - {req.status_code}")
+                    # print(f"{req.url} - {req.status_code}")
                     file.write(f"{req.url} - {req.status_code}")
                     success = True
                 except Exception as e:
@@ -526,24 +527,35 @@ def vulnscan(url):
 
 # grab ASNs for given domain
 def asn_grab(url):
+    global asns_data
 
-    response = requests.get (f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
-    if response.status_code == 200:
-        data = response.json()
-
-        with open(Path(output_dir) / f"{DomainName(args.url).get_dname()}_asn.txt", "w", encoding='utf-8') as file1:
-            if 'data' in data and 'ipv4_prefixes' in data['data']:
-                for prefix in data['data']['ipv4_prefixes']:
-                    file1.write(f"{prefix['ip']}, {prefix['name']}\n")
-                    print(f"{prefix['ip']}, {prefix['name']}")
-
-            else:
-                print("no ASNs found")
+    response1 = requests.get(f"https://api.bgpview.io/search?query_term={url}", headers=headers) # randomize user agents
+    if response1.status_code == 200:
+        data = response1.json()
+        if 'data' in data and 'asns' in data['data']:
+            for asn in data['data']['asns']:
+                asns_data.append(f"{asn['asn']}, {asn['name']}")
     
-    else:
-        print(f"failed to fetch asn data: {response.status_code}")
+    response2 = requests.get("https://www.cidr-report.org/as2.0/autnums.html", headers=headers)
+    if response2.status_code == 200:
+        html_content = response2.text
+        soup = BeautifulSoup(html_content, 'html.parser')
+        for link in soup.find_all('a'):
+            asn_text = link.text.strip()
+            description_text = link.next_sibling.strip() if link.next_sibling else ""
+            full_line_text = f"{asn_text} {description_text}"
+            match = re.match(r'^AS(\d+)\s*(.*)$', full_line_text)
+            if match:
+                asns_data.append((match.group(1), match.group(2).split(',')[0].strip()))
+
+    with open(Path(output_dir) / f"{DomainName(args.url).get_dname()}_asn.txt", "w", encoding='utf-8') as file1:
+        for asn in asns_data:
+            if (str(DomainName(_url).get_dname()).upper() in asn) or ((str(DomainName(_url).get_dname()) in asn)):
+                file1.write(f"{asn}\n")
+
+    # print(asns_data) # ---> only for troubleshooting
     
-    return
+    return asns_data
 
 # handle the existing files and fail if the user specifies a file that already exists ---> to remove later
 def handle_existing_files():
@@ -578,6 +590,7 @@ def output_to_excel():
                     for line in asn_content:
                         ip, domain = line.strip().split(',')
                         asn_xlsx.append((ip, domain))
+                    print(asn_xlsx)
 
             # check if 'apex' is in the filename
             if "subdomain" in filename:
@@ -588,13 +601,13 @@ def output_to_excel():
                     for line in sub_content:
                         subdomain_xlsx.append(f"{line}\n")
 
-            if "livesub" in filename:
+            if "live_host" in filename:
                 # construct full path to the file if the file has apex in it
                 file_path = os.path.join(directory, filename)
                 with open(file_path, 'r', encoding='utf-8') as live_file:
-                    live_content = live_file.read().splitlines()
-                    for line in live_content:
-                        live_subdomains_xlsx.append(f"{line}\n")
+                    for line in live_file:
+                        host, status = line.strip().split('-')
+                        live_subdomains_xlsx.append((host, status))
 
             if "tech" in filename:
                 # construct full path to the file if the file has apex in it
@@ -652,7 +665,7 @@ def output_to_excel():
         df_apex = pd.DataFrame(apex_xlsx, columns=['Apex Domains'])
         df_asn = pd.DataFrame(asn_xlsx, columns=['ASN IP', 'Domain'])
         df_subdomains = pd.DataFrame(subdomain_xlsx, columns=['Subdomains'])
-        df_live = pd.DataFrame(live_subdomains_xlsx, columns=['Live Subdomains'])
+        df_live = pd.DataFrame(live_subdomains_xlsx, columns=['Subdomains', 'Status Code'])
         df_tech = pd.DataFrame(tech_xlsx, columns=['Subdomains', 'Tech Stack'])
         df_port = pd.DataFrame(port_scan_xlsx, columns=['Domain', 'Port'])
         df_vuln = pd.DataFrame(vuln_scan_xlsx, columns=['Vuln Check', 'Method', 'Severity', 'Domains', 'Findings'])
